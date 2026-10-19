@@ -1,0 +1,25 @@
+strand-bench baseline-a17 2026-10-19T15:49:06+05:30 runs=5 root=1 1600x2560 apps=13
+info: saved
+launch cold: median 353  p90 595  (n=60) ms
+launch warm: median 43  p90 86  (n=65) ms
+  settings cold median 639  p90 736  (n=5)
+  aperture cold median 368  p90 393  (n=5)
+  glimpse cold median 262  p90 278  (n=5)
+  jelly cold median 593  p90 595  (n=5)
+  contacts cold 
+  etar cold median 343  p90 488  (n=5)
+  deskclock cold median 386  p90 487  (n=5)
+  calculator2 cold median 317  p90 472  (n=5)
+  twelve cold median 351  p90 356  (n=5)
+  recorder cold median 208  p90 320  (n=5)
+  messaging cold median 269  p90 415  (n=5)
+  documentsui cold median 369  p90 531  (n=5)
+  dialer cold median 300  p90 478  (n=5)
+jank settings: janky% median 0 permille  p90 0 permille  (n=5)
+  settings p99 frame: median 8  p90 8  (n=5) ms
+jank shade: janky% median 51 permille  p90 59 permille  (n=5)
+  shade p99 frame: median 34  p90 36  (n=5) ms
+retention: 27/27 relaunches stayed cached, lmkd kills 0
+  swap in 99284 out 156623 pages, memory PSI some 94 ms full 0 ms
+  zram: orig 293 MB, compressed 81 MB
+results: /mnt/directstorage/trees/strand/bench/results/baseline-a17-20261019-154906
