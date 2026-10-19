@@ -1,0 +1,15 @@
+# Apps the launch and retention tests cycle through, one component per line.
+# Add heavier apps (browsers, social, games) to see real memory pressure.
+com.android.settings/.Settings
+org.lineageos.aperture/.CameraLauncher
+org.lineageos.glimpse/.MainActivity
+org.lineageos.jelly/.MainActivity
+com.android.contacts/.activities.PeopleActivity
+org.lineageos.etar/com.android.calendar.AllInOneActivity
+com.android.deskclock/.DeskClock
+com.android.calculator2/.Calculator
+org.lineageos.twelve/.MainActivity
+org.lineageos.recorder/.RecorderActivity
+com.android.messaging/.ui.conversationlist.ConversationListActivity
+com.android.documentsui/.LauncherActivity
+com.android.dialer/.main.impl.MainActivity
