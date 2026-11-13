@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <permissions>
     <privapp-permissions package="org.strand.engine">
+        <permission name="android.permission.INSTALL_PACKAGES" />
         <permission name="android.permission.PACKAGE_USAGE_STATS" />
+        <permission name="android.permission.REBOOT" />
     </privapp-permissions>
 </permissions>
