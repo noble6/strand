@@ -1,4 +1,4 @@
-From 67023198eee8d130abc4f64f97d0bb4f05956aab Mon Sep 17 00:00:00 2001
+From d394c0c8c852da374164c320689433ac62b317cd Mon Sep 17 00:00:00 2001
 From: noble6 <ruanproject01@gmail.com>
 Date: Fri, 13 Nov 2026 14:12:24 +0530
 Subject: [PATCH] renderengine: Add the Strand blur filter
@@ -33,10 +33,10 @@ KawaseBlurDualFilterV2 again.
  libs/renderengine/skia/SkiaRenderEngine.cpp   |   9 +
  .../skia/compat/GraphitePipelineManager.cpp   |   1 +
  libs/renderengine/skia/filters/BlurFilter.h   |  10 +
- .../skia/filters/StrandBlurFilter.cpp         | 337 ++++++++++++++++++
- .../skia/filters/StrandBlurFilter.h           | 135 +++++++
+ .../skia/filters/StrandBlurFilter.cpp         | 346 ++++++++++++++++++
+ .../skia/filters/StrandBlurFilter.h           | 138 +++++++
  services/surfaceflinger/SurfaceFlinger.cpp    |   4 +
- 8 files changed, 499 insertions(+), 1 deletion(-)
+ 8 files changed, 511 insertions(+), 1 deletion(-)
  create mode 100644 libs/renderengine/skia/filters/StrandBlurFilter.cpp
  create mode 100644 libs/renderengine/skia/filters/StrandBlurFilter.h
 
@@ -143,10 +143,10 @@ index 74b83a0..0cb7bde 100644
                                                    const uint32_t radius,
 diff --git a/libs/renderengine/skia/filters/StrandBlurFilter.cpp b/libs/renderengine/skia/filters/StrandBlurFilter.cpp
 new file mode 100644
-index 0000000..3a47c19
+index 0000000..17951f7
 --- /dev/null
 +++ b/libs/renderengine/skia/filters/StrandBlurFilter.cpp
-@@ -0,0 +1,337 @@
+@@ -0,0 +1,346 @@
 +/*
 + * Copyright (C) 2026 The Strand Project
 + *
@@ -343,6 +343,14 @@ index 0000000..3a47c19
 +    const float step = sqrt(std::max(0.0f, powf(radius * kInputScale, 2) - sumSquaredR) /
 +                            (sumSquaredStep == 0 ? 1 : sumSquaredStep));
 +
++    if (slot.surfacesContext != context) {
++        for (auto& s : slot.down) s = nullptr;
++        for (auto& s : slot.up) s = nullptr;
++        slot.result = nullptr;
++        slot.surfacesContext = context;
++        reusePyramid = false;
++    }
++
 +    const SkColorType colorType = slot.colorType;
 +    auto infoFor = [&](int level) {
 +        return SkImageInfo::Make(levelSize(rect.width(), level), levelSize(rect.height(), level),
@@ -446,8 +454,9 @@ index 0000000..3a47c19
 +        blurIntoSlot(*slot, context, radius, lite, input, rect, true);
 +    } else {
 +        mMisses++;
-+        // Least recently used slot; uncacheable frames always use slot 0.
-+        slot = &mSlots[0];
++        // Least recently used slot. Uncacheable frames use the last slot, so a
++        // protected (DRM) frame doesn't throw away a cached unprotected blur.
++        slot = &mSlots[kCacheSlots - 1];
 +        if (cacheable) {
 +            for (auto& s : mSlots) {
 +                if (!s.valid || s.lastUse < slot->lastUse) slot = &s;
@@ -486,10 +495,10 @@ index 0000000..3a47c19
 +} // namespace android
 diff --git a/libs/renderengine/skia/filters/StrandBlurFilter.h b/libs/renderengine/skia/filters/StrandBlurFilter.h
 new file mode 100644
-index 0000000..c7f24da
+index 0000000..99f7565
 --- /dev/null
 +++ b/libs/renderengine/skia/filters/StrandBlurFilter.h
-@@ -0,0 +1,135 @@
+@@ -0,0 +1,138 @@
 +/*
 + * Copyright (C) 2026 The Strand Project
 + *
@@ -582,6 +591,9 @@ index 0000000..c7f24da
 +        Backdrop backdrop;
 +        SkIRect rect = SkIRect::MakeEmpty();
 +        SkColorType colorType = kUnknown_SkColorType;
++        // GPU context that created the surfaces below: they can't be drawn
++        // with another one (protected vs unprotected, or after a reset)
++        const SkiaGpuContext* surfacesContext = nullptr;
 +
 +        // Downsample pyramid, level 0 at 1/4 of the blur rect
 +        sk_sp<SkSurface> down[kMaxLevels];
