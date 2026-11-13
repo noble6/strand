@@ -100,7 +100,7 @@ public class ResonaActivity extends Activity implements ResonaController.Listene
     private SpectrumView mSpectrum;
     private EqCurveView mEq;
     private TextView mSubtitle, mMeters;
-    private LinearLayout mProfiles, mEqPresets, mEffects;
+    private LinearLayout mProfiles, mEqPresets, mEffects, mHardware;
     private boolean mResumed;
     private boolean mBuilding;
 
@@ -245,6 +245,10 @@ public class ResonaActivity extends Activity implements ResonaController.Listene
         spec.addView(mMeters);
         col.addView(spec);
 
+        col.addView(section("Hardware"));
+        mHardware = card();
+        col.addView(mHardware);
+
         col.addView(section("Profile"));
         mProfiles = new LinearLayout(this);
         col.addView(chipRow(mProfiles));
@@ -353,12 +357,69 @@ public class ResonaActivity extends Activity implements ResonaController.Listene
             mEqPresets.addView(chip(e.getKey(), match, v -> mCtl.setEq(e.getValue())));
         }
 
+        buildHardware();
+
         mEffects.removeAllViews();
         for (Fx fx : EFFECTS) {
             if (fx.headphonesOnly && mCtl.device() != ResonaPresets.Device.HEADPHONES) continue;
             mEffects.addView(effectCard(fx));
         }
         mBuilding = false;
+    }
+
+    private LinearLayout row(String label, String value) {
+        LinearLayout r = new LinearLayout(this);
+        r.setPadding(0, dp(3), 0, dp(3));
+        TextView l = text(label, 14, R.color.text_dim);
+        r.addView(l, new LinearLayout.LayoutParams(dp(120), ViewGroup.LayoutParams.WRAP_CONTENT));
+        TextView v = text(value, 14, R.color.text);
+        r.addView(v, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        return r;
+    }
+
+    private LinearLayout toggle(String title, String desc, boolean on,
+            android.widget.CompoundButton.OnCheckedChangeListener l) {
+        LinearLayout r = new LinearLayout(this);
+        r.setGravity(Gravity.CENTER_VERTICAL);
+        r.setPadding(0, dp(12), 0, 0);
+        LinearLayout texts = new LinearLayout(this);
+        texts.setOrientation(LinearLayout.VERTICAL);
+        texts.addView(text(title, 16, R.color.text));
+        texts.addView(text(desc, 13, R.color.text_dim));
+        r.addView(texts, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        Switch sw = new Switch(this);
+        sw.setChecked(on);
+        sw.setOnCheckedChangeListener(l);
+        r.addView(sw);
+        return r;
+    }
+
+    /** The output, what it takes, the codec, and the hardware-specific switches. */
+    private void buildHardware() {
+        mHardware.removeAllViews();
+        android.media.AudioManager am = getSystemService(android.media.AudioManager.class);
+        android.media.AudioDeviceInfo out = ResonaHardware.mediaOutput(am);
+        for (String[] r : ResonaHardware.describe(this, out)) mHardware.addView(row(r[0], r[1]));
+        if (out != null && out.getType() == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP) {
+            LinearLayout codec = row("Codec", "...");
+            mHardware.addView(codec);
+            ResonaHardware.bluetoothCodec(this, c -> runOnUiThread(() ->
+                    ((TextView) codec.getChildAt(1)).setText(c != null ? c : "unknown")));
+        }
+        if (mCtl.hasFactoryTuning() && mCtl.device() == ResonaPresets.Device.SPEAKER) {
+            mHardware.addView(toggle("Factory speaker tuning",
+                    "The maker's calibration for these speakers ("
+                            + (mCtl.isLandscape() ? "landscape" : "portrait") + "), from the stock Dolby tuning",
+                    mCtl.isFactoryTuning(), (b, v) -> mCtl.setFactoryTuning(v)));
+        }
+        if (out != null && ResonaHardware.bestMixer(am, out, false) != null) {
+            mHardware.addView(toggle("Hi-Res output",
+                    "Run the mixer at " + ResonaHardware.describe(ResonaHardware.bestMixer(am, out, false))
+                            + " for this output, Resona included",
+                    ResonaHardware.hiResOn(this, out), (b, v) -> {
+                        if (!ResonaHardware.setHiRes(this, out, v)) b.setChecked(!v);
+                    }));
+        }
     }
 
     private View effectCard(Fx fx) {

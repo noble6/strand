@@ -11,6 +11,8 @@ import android.media.AudioDeviceCallback;
 import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
 import android.media.AudioPlaybackConfiguration;
+import android.hardware.display.DisplayManager;
+import android.view.Display;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -49,6 +51,8 @@ public final class ResonaController {
     private boolean mComparing;
     private boolean mStarted;
     private Boolean mInstalled;
+    private SpeakerTuning mTuning;
+    private boolean mLandscape = true;
 
     public static synchronized ResonaController get(Context c) {
         if (sInstance == null) sInstance = new ResonaController(c.getApplicationContext());
@@ -82,8 +86,56 @@ public final class ResonaController {
             @Override
             public void onReceive(Context c, Intent i) { pushVolume(); }
         }, new IntentFilter("android.media.VOLUME_CHANGED_ACTION"), Context.RECEIVER_EXPORTED);
+        mTuning = SpeakerTuning.load();
+        DisplayManager dm = mContext.getSystemService(DisplayManager.class);
+        dm.registerDisplayListener(new DisplayManager.DisplayListener() {
+            @Override public void onDisplayAdded(int id) {}
+            @Override public void onDisplayRemoved(int id) {}
+
+            @Override
+            public void onDisplayChanged(int id) {
+                if (id == Display.DEFAULT_DISPLAY) orientationChanged();
+            }
+        }, mHandler);
+        mLandscape = landscape();
         routeChanged();
         mHandler.post(mWatchdog);
+    }
+
+    // --- factory speaker calibration -----------------------------------------
+
+    /** True when the device ships a speaker calibration (resona_speaker.json). */
+    public boolean hasFactoryTuning() { return mTuning != null; }
+    public boolean isFactoryTuning() { return mPrefs.getBoolean("factory_tuning", true); }
+    public boolean isLandscape() { return mLandscape; }
+
+    public void setFactoryTuning(boolean on) {
+        mPrefs.edit().putBoolean("factory_tuning", on).apply();
+        apply();
+    }
+
+    private SpeakerTuning.Curve speakerCurve() {
+        if (mTuning == null || !isFactoryTuning() || mDevice != ResonaPresets.Device.SPEAKER)
+            return null;
+        SpeakerTuning.Curve c = mTuning.forOrientation(mLandscape);
+        return c != null && c.sections.length > 0 ? c : null;
+    }
+
+    private boolean landscape() {
+        Display d = mContext.getSystemService(DisplayManager.class).getDisplay(Display.DEFAULT_DISPLAY);
+        if (d == null) return true;
+        Display.Mode m = d.getMode();
+        int w = m.getPhysicalWidth(), h = m.getPhysicalHeight();
+        int r = d.getRotation();
+        boolean swapped = r == android.view.Surface.ROTATION_90 || r == android.view.Surface.ROTATION_270;
+        return swapped ? h > w : w > h;
+    }
+
+    private void orientationChanged() {
+        boolean l = landscape();
+        if (l == mLandscape) return;
+        mLandscape = l;
+        if (mTuning != null && mDevice == ResonaPresets.Device.SPEAKER) apply();
     }
 
     // --- state the UI reads ------------------------------------------------
@@ -203,6 +255,18 @@ public final class ResonaController {
             int i = ResonaParams.index(k);
             if (i >= 0) p[i] = (float) o.optDouble(k, p[i]);
         }
+        SpeakerTuning.Curve curve = speakerCurve();
+        if (curve != null) {
+            p[ResonaParams.CORR_ON] = 1f;
+            p[ResonaParams.CORR_PREAMP] = curve.preamp;
+        } else if (mDevice == ResonaPresets.Device.SPEAKER) {
+            p[ResonaParams.CORR_ON] = 0f;
+        }
+        // DeepBass works where the factory tuning hands bass to virtual bass
+        if (mDevice == ResonaPresets.Device.SPEAKER && mTuning != null && mTuning.bassHigh > 0
+                && !o.has("bass_freq")) {
+            p[ResonaParams.BASS_FREQ] = mTuning.bassHigh;
+        }
         p[ResonaParams.SYSVOL_DB] = volumeDb();
         p[ResonaParams.ENABLE] = mComparing ? 0f : 1f;
         p[ResonaParams.LAYOUT] = 0f;
@@ -226,6 +290,8 @@ public final class ResonaController {
             mEffect = ResonaEffect.create();
         }
         if (mEffect != null) {
+            SpeakerTuning.Curve curve = speakerCurve();
+            if (curve != null) mEffect.setCorrection(curve.sections);
             mEffect.setParams(params());
             mEffect.setEnabled(true);
         }

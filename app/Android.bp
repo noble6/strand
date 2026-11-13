@@ -11,6 +11,11 @@ android_app {
     privileged: true,
     system_ext_specific: true,
     required: ["privapp_whitelist_org.strand.engine"],
+    // Resona is the sound effect app; these would add their own effects to the mix
+    overrides: [
+        "AudioFX",
+        "MusicFX",
+    ],
     optimize: {
         enabled: false,
     },
