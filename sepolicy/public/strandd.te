@@ -1,0 +1,3 @@
+# Public so device policy can grant strandd its vendor sysfs nodes
+type strandd, domain;
+type strandd_exec, system_file_type, exec_type, file_type;

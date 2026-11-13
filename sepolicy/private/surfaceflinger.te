@@ -1,0 +1,2 @@
+# sys.strand.blur.lite, ro.strand.blur.cache
+get_prop(surfaceflinger, strand_prop)

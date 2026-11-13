@@ -1,0 +1,6 @@
+# Example for a device's vendor sepolicy (types differ per SoC vendor):
+# GPU limits and battery stats for strandd.
+allow strandd vendor_sysfs_kgsl:dir r_dir_perms;
+allow strandd vendor_sysfs_kgsl:file rw_file_perms;
+allow strandd vendor_sysfs_kgsl:lnk_file read;
+r_dir_file(strandd, vendor_sysfs_battery_supply)

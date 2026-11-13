@@ -1,0 +1,10 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+prebuilt_etc {
+    name: "strand.conf",
+    src: "strand.conf",
+    sub_dir: "strand",
+    system_ext_specific: true,
+}

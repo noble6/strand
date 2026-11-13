@@ -1,0 +1,645 @@
+From 67023198eee8d130abc4f64f97d0bb4f05956aab Mon Sep 17 00:00:00 2001
+From: noble6 <ruanproject01@gmail.com>
+Date: Fri, 13 Nov 2026 14:12:24 +0530
+Subject: [PATCH] renderengine: Add the Strand blur filter
+
+Dual filter Kawase blur with the same look as KawaseBlurDualFilterV2
+(same shaders and radius mapping) that skips work it has already done.
+
+Backdrop cache: SkiaRenderEngine now tells the blur filter which layers
+were drawn below the blurred one. When those layers and the display
+settings match an earlier frame, the input pixels match too, so:
+ - same rect and radius: the previous result is returned, no GPU work
+ - same rect, new radius: the downsample pyramid is kept and only the
+   upsample passes run
+
+This is the notification shade over a still launcher or app: the shade
+content scrolls and animates, the blurred backdrop doesn't. Layers that
+can change pixels without changing their settings (front buffered,
+command stream) turn the cache off for that frame.
+
+Every pass renders to surfaces kept by the filter, 8-bit and opaque
+unless the input is F16, and discards the old contents when it
+overwrites them. Upsample targets are separate from the pyramid.
+
+sys.strand.blur.lite=1 caps the passes at two for battery and thermal
+profiles. ro.strand.blur.cache=false turns the cache off.
+
+Strand is the default; debug.renderengine.blur_algorithm=kawase2 selects
+KawaseBlurDualFilterV2 again.
+---
+ libs/renderengine/Android.bp                  |   1 +
+ .../include/renderengine/RenderEngine.h       |   3 +-
+ libs/renderengine/skia/SkiaRenderEngine.cpp   |   9 +
+ .../skia/compat/GraphitePipelineManager.cpp   |   1 +
+ libs/renderengine/skia/filters/BlurFilter.h   |  10 +
+ .../skia/filters/StrandBlurFilter.cpp         | 337 ++++++++++++++++++
+ .../skia/filters/StrandBlurFilter.h           | 135 +++++++
+ services/surfaceflinger/SurfaceFlinger.cpp    |   4 +
+ 8 files changed, 499 insertions(+), 1 deletion(-)
+ create mode 100644 libs/renderengine/skia/filters/StrandBlurFilter.cpp
+ create mode 100644 libs/renderengine/skia/filters/StrandBlurFilter.h
+
+diff --git a/libs/renderengine/Android.bp b/libs/renderengine/Android.bp
+index ba03b58..bc5bc64 100644
+--- a/libs/renderengine/Android.bp
++++ b/libs/renderengine/Android.bp
+@@ -114,6 +114,7 @@ filegroup {
+         "skia/filters/LutShader.cpp",
+         "skia/filters/MouriMap.cpp",
+         "skia/filters/RuntimeEffectManager.cpp",
++        "skia/filters/StrandBlurFilter.cpp",
+         "skia/filters/StretchShaderFactory.cpp",
+     ],
+ }
+diff --git a/libs/renderengine/include/renderengine/RenderEngine.h b/libs/renderengine/include/renderengine/RenderEngine.h
+index 3dd2faa..934fd67 100644
+--- a/libs/renderengine/include/renderengine/RenderEngine.h
++++ b/libs/renderengine/include/renderengine/RenderEngine.h
+@@ -168,8 +168,9 @@ public:
+         Gaussian,
+         Kawase,
+         KawaseDualFilterV2,
++        Strand,
+ 
+-        ftl_last = KawaseDualFilterV2
++        ftl_last = Strand
+     };
+ 
+     static std::unique_ptr<RenderEngine> create(const RenderEngineCreationArgs& args);
+diff --git a/libs/renderengine/skia/SkiaRenderEngine.cpp b/libs/renderengine/skia/SkiaRenderEngine.cpp
+index c4b5c1f..a6aab48 100644
+--- a/libs/renderengine/skia/SkiaRenderEngine.cpp
++++ b/libs/renderengine/skia/SkiaRenderEngine.cpp
+@@ -88,6 +88,7 @@
+ #include "filters/GaussianBlurFilter.h"
+ #include "filters/KawaseBlurDualFilterV2.h"
+ #include "filters/KawaseBlurFilter.h"
++#include "filters/StrandBlurFilter.h"
+ #include "filters/LutShader.h"
+ #include "filters/MouriMap.h"
+ #include "filters/RuntimeEffectManager.h"
+@@ -354,6 +355,11 @@ SkiaRenderEngine::SkiaRenderEngine(Threaded threaded, PixelFormat pixelFormat,
+             mBlurFilter = new KawaseBlurDualFilterV2(mRuntimeEffectManager);
+             break;
+         }
++        case BlurAlgorithm::Strand: {
++            ALOGD("Background Blurs Enabled (Strand algorithm)");
++            mBlurFilter = new StrandBlurFilter(mRuntimeEffectManager);
++            break;
++        }
+     }
+ 
+     mCapture = std::make_unique<SkiaCapture>();
+@@ -1114,6 +1120,9 @@ void SkiaRenderEngine::drawLayersInternal(
+ 
+             // TODO(b/182216890): Filter out empty layers earlier
+             if (blurRect.width() > 0 && blurRect.height() > 0) {
++                mBlurFilter->setBackdrop(display, layers,
++                                         static_cast<size_t>(&layer - layers.data()));
++
+                 // if multiple layers have blur, then we need to take a snapshot now because
+                 // only the lowest layer will have blurImage populated earlier
+                 if (!blurInput) {
+diff --git a/libs/renderengine/skia/compat/GraphitePipelineManager.cpp b/libs/renderengine/skia/compat/GraphitePipelineManager.cpp
+index 4ec0b5e..2b7a942 100644
+--- a/libs/renderengine/skia/compat/GraphitePipelineManager.cpp
++++ b/libs/renderengine/skia/compat/GraphitePipelineManager.cpp
+@@ -657,6 +657,7 @@ std::vector<PrecompileSettings> chooseBlurPrecompileSettings(RuntimeEffectManage
+         case RenderEngine::BlurAlgorithm::Gaussian:
+         case RenderEngine::BlurAlgorithm::Kawase:
+         case RenderEngine::BlurAlgorithm::KawaseDualFilterV2:
++        case RenderEngine::BlurAlgorithm::Strand:
+             ALOGW("Pipeline precompilation for %s is not yet supported",
+                   ftl::enum_string_full(effectManager.getChosenBlurAlgorithm()).c_str());
+             break;
+diff --git a/libs/renderengine/skia/filters/BlurFilter.h b/libs/renderengine/skia/filters/BlurFilter.h
+index 74b83a0..0cb7bde 100644
+--- a/libs/renderengine/skia/filters/BlurFilter.h
++++ b/libs/renderengine/skia/filters/BlurFilter.h
+@@ -21,6 +21,11 @@
+ #include <SkRuntimeEffect.h>
+ #include <SkSurface.h>
+ 
++#include <renderengine/DisplaySettings.h>
++#include <renderengine/LayerSettings.h>
++
++#include <vector>
++
+ #include "../compat/SkiaGpuContext.h"
+ #include "RuntimeEffectManager.h"
+ 
+@@ -43,6 +48,11 @@ public:
+     // Execute blur, saving it to a TEMPORARY texture. WARNING: the returned SkImage is only
+     // guaranteed to be valid until the next call to generateTemporaryImage on this BlurFilter. This
+     // limitation is to avoid unnecessary allocations.
++    // Called before generateTemporaryImage() with the layers drawn below the blurred one
++    // (layers[0, count)), so a filter can tell when its input pixels are unchanged.
++    virtual void setBackdrop(const DisplaySettings& /*display*/,
++                             const std::vector<LayerSettings>& /*layers*/, size_t /*count*/) {}
++
+     virtual sk_sp<SkImage> generateTemporaryImage(SkiaGpuContext* context,
+                                                   const DisplaySettings& display,
+                                                   const uint32_t radius,
+diff --git a/libs/renderengine/skia/filters/StrandBlurFilter.cpp b/libs/renderengine/skia/filters/StrandBlurFilter.cpp
+new file mode 100644
+index 0000000..3a47c19
+--- /dev/null
++++ b/libs/renderengine/skia/filters/StrandBlurFilter.cpp
+@@ -0,0 +1,337 @@
++/*
++ * Copyright (C) 2026 The Strand Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#define ATRACE_TAG ATRACE_TAG_GRAPHICS
++
++#include "StrandBlurFilter.h"
++
++#include <SkAlphaType.h>
++#include <SkBlendMode.h>
++#include <SkCanvas.h>
++#include <SkColorType.h>
++#include <SkImageInfo.h>
++#include <SkMatrix.h>
++#include <SkPaint.h>
++#include <SkSamplingOptions.h>
++#include <SkShader.h>
++#include <SkTileMode.h>
++#include <android-base/properties.h>
++#include <common/trace.h>
++#include <log/log.h>
++
++#include <algorithm>
++#include <cinttypes>
++#include <cmath>
++
++namespace android {
++namespace renderengine {
++namespace skia {
++
++namespace {
++
++// gralloc usage bit for front buffered rendering: the producer draws into the buffer that is
++// on screen, so the same buffer can hold new pixels and the backdrop cache can't trust it.
++constexpr uint64_t kFrontBufferUsage = 1ULL << 32;
++
++// Size of pyramid level `level` for a blur rect of w x h (level 0 is 1/4 scale).
++int levelSize(int size, int level) {
++    return std::max(1, static_cast<int>(static_cast<float>(size) * BlurFilter::kInputScale) >>
++                               level);
++}
++
++} // namespace
++
++StrandBlurFilter::StrandBlurFilter(RuntimeEffectManager& effectManager)
++      : BlurFilter(effectManager),
++        mQuarterDownEffect(
++                effectManager
++                        .mKnownEffects[kKawaseBlurDualFilterV2_QuarterResDownSampleBlurEffect]),
++        mHalfDownEffect(
++                effectManager.mKnownEffects[kKawaseBlurDualFilterV2_HalfResDownSampleBlurEffect]),
++        mUpEffect(effectManager.mKnownEffects[kKawaseBlurDualFilterV2_UpSampleBlurEffect]),
++        mCacheEnabled(base::GetBoolProperty("ro.strand.blur.cache", true)) {
++    ALOGI("Strand blur: backdrop cache %s", mCacheEnabled ? "on" : "off");
++}
++
++StrandBlurFilter::LayerSnap StrandBlurFilter::snap(const LayerSettings& layer) {
++    LayerSnap s;
++    s.settings = layer;
++    if (const auto& buffer = layer.source.buffer.buffer) {
++        s.bufferId = buffer->getId();
++    }
++    s.settings.source.buffer.buffer = nullptr;
++    s.settings.source.buffer.fence = nullptr;
++    return s;
++}
++
++bool StrandBlurFilter::sameLayer(const LayerSnap& a, const LayerSnap& b) {
++    // operator== covers what SurfaceFlinger's own client composition cache compares; the
++    // rest are fields it leaves out that still change the pixels.
++    return a.bufferId == b.bufferId && a.settings == b.settings &&
++            a.settings.postProcessEffect == b.settings.postProcessEffect &&
++            a.settings.postProcessUniforms == b.settings.postProcessUniforms &&
++            a.settings.postProcessTarget == b.settings.postProcessTarget &&
++            a.settings.geometry.originalBounds == b.settings.geometry.originalBounds &&
++            a.settings.geometry.otherCrop == b.settings.geometry.otherCrop &&
++            a.settings.geometry.otherRoundedCornersRadii ==
++                    b.settings.geometry.otherRoundedCornersRadii &&
++            !(a.settings.borderSettings != b.settings.borderSettings) &&
++            !(a.settings.boxShadowSettings != b.settings.boxShadowSettings);
++}
++
++bool StrandBlurFilter::sameBackdrop(const Backdrop& a, const Backdrop& b) {
++    if (a.layers.size() != b.layers.size() || a.maxWhitePoint != b.maxWhitePoint ||
++        !(a.display == b.display) || a.display.targetHdrSdrRatio != b.display.targetHdrSdrRatio ||
++        a.display.tonemapStrategy != b.display.tonemapStrategy) {
++        return false;
++    }
++    for (size_t i = 0; i < a.layers.size(); i++) {
++        if (!sameLayer(a.layers[i], b.layers[i])) return false;
++    }
++    return true;
++}
++
++void StrandBlurFilter::setBackdrop(const DisplaySettings& display,
++                                   const std::vector<LayerSettings>& layers, size_t count) {
++    std::lock_guard<std::mutex> lock(mMutex);
++    mPending.display = display;
++    mPending.layers.clear();
++    mPending.maxWhitePoint = 0.f;
++    mPendingCacheable = mCacheEnabled && count <= layers.size();
++    if (!mPendingCacheable) return;
++
++    // The dimming ratio of the layers below depends on the brightest layer anywhere in the
++    // frame, so an HDR layer above the blur still changes the backdrop.
++    for (const auto& layer : layers) {
++        mPending.maxWhitePoint = std::max(mPending.maxWhitePoint, layer.whitePointNits);
++    }
++    mPending.layers.reserve(count);
++    for (size_t i = 0; i < count; i++) {
++        const auto& buffer = layers[i].source.buffer.buffer;
++        // Front buffered layers and layers drawn from command streams can change pixels
++        // without anything here changing.
++        if ((buffer && (buffer->getUsage() & kFrontBufferUsage)) ||
++            layers[i].renderCommandBuffer) {
++            mPendingCacheable = false;
++            mPending.layers.clear();
++            return;
++        }
++        mPending.layers.push_back(snap(layers[i]));
++    }
++}
++
++bool StrandBlurFilter::ensureSurface(SkiaGpuContext* context, sk_sp<SkSurface>& surface,
++                                     const SkImageInfo& info) {
++    if (surface && surface->imageInfo() == info) return true;
++    surface = context->createRenderTarget(info);
++    if (!surface) {
++        ALOGE("Strand blur: failed to create a %dx%d surface", info.width(), info.height());
++        return false;
++    }
++    return true;
++}
++
++void StrandBlurFilter::draw(const sk_sp<SkSurface>& dst, const sk_sp<SkImage>& src,
++                            const SkMatrix& srcToDst, const sk_sp<SkRuntimeEffect>& effect,
++                            float offset, float alpha) const {
++    const SkSamplingOptions linear(SkFilterMode::kLinear, SkMipmapMode::kNone);
++    sk_sp<SkShader> input = src->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, linear,
++                                            &srcToDst);
++    SkPaint paint;
++    if (effect == mUpEffect && offset == 0.f) {
++        paint.setShader(std::move(input));
++        paint.setAlphaf(alpha);
++    } else {
++        SkRuntimeShaderBuilder builder(effect);
++        builder.child("child") = std::move(input);
++        if (effect == mUpEffect) {
++            builder.uniform("in_blurOffset") = offset;
++            builder.uniform("in_crossFade") = alpha;
++            builder.uniform("in_weightedCrossFade") = alpha * 0.125f;
++        }
++        paint.setShader(builder.makeShader(nullptr));
++    }
++    SkCanvas* canvas = dst->getCanvas();
++    if (alpha == 1.f) {
++        // Every pixel is overwritten: tell the GPU not to load the old contents.
++        canvas->discard();
++        paint.setBlendMode(SkBlendMode::kSrc);
++    } else {
++        paint.setBlendMode(SkBlendMode::kSrcOver);
++    }
++    canvas->drawPaint(paint);
++}
++
++void StrandBlurFilter::blurIntoSlot(Slot& slot, SkiaGpuContext* context, uint32_t blurRadius,
++                                    bool lite, const sk_sp<SkImage>& input, const SkIRect& rect,
++                                    bool reusePyramid) const {
++    // Same radius mapping as KawaseBlurDualFilterV2, so both look the same: 1/sqrt(3) matches
++    // Skia's Gaussian sigma, and the fraction of the last pass is blended in by alpha.
++    const float radius = blurRadius * 0.57735f;
++    float filterDepth = std::min(kMaxLevels - 1.0f, radius * kInputScale / 2.5f);
++    if (lite) filterDepth = std::min(filterDepth, 2.0f);
++    const int passes = std::min(kMaxLevels - 1, static_cast<int>(std::ceil(filterDepth)));
++
++    float sumSquaredR = 0, sumSquaredStep = 0;
++    for (int i = 0; i < passes; i++) {
++        const float alpha = std::min(1.0f, filterDepth - i);
++        sumSquaredR += powf(powf(2.0f, i - 1) * alpha * M_SQRT2, 2.0f);
++        sumSquaredStep += powf(powf(2.0f, i) * alpha, 2.0f);
++    }
++    const float step = sqrt(std::max(0.0f, powf(radius * kInputScale, 2) - sumSquaredR) /
++                            (sumSquaredStep == 0 ? 1 : sumSquaredStep));
++
++    const SkColorType colorType = slot.colorType;
++    auto infoFor = [&](int level) {
++        return SkImageInfo::Make(levelSize(rect.width(), level), levelSize(rect.height(), level),
++                                 colorType, kOpaque_SkAlphaType, input->refColorSpace());
++    };
++    auto fail = [&]() {
++        slot.valid = false;
++        slot.result = nullptr;
++    };
++
++    // Downsample pyramid: level 0 straight from the input, then halve.
++    int built = reusePyramid ? slot.depth : -1;
++    if (built < 0) {
++        SFTRACE_NAME("StrandBlur down0");
++        if (!ensureSurface(context, slot.down[0], infoFor(0))) return fail();
++        SkMatrix m = SkMatrix::Translate(-rect.fLeft, -rect.fTop);
++        m.postScale(slot.down[0]->width() / static_cast<float>(rect.width()),
++                    slot.down[0]->height() / static_cast<float>(rect.height()));
++        draw(slot.down[0], input, m, mQuarterDownEffect, 0.f, 1.f);
++        built = 0;
++    }
++    for (int i = built; i < passes; i++) {
++        SFTRACE_NAME("StrandBlur down");
++        if (!ensureSurface(context, slot.down[i + 1], infoFor(i + 1))) return fail();
++        const auto& src = slot.down[i];
++        const auto& dst = slot.down[i + 1];
++        draw(dst, src->makeTemporaryImage(),
++             SkMatrix::Scale(dst->width() / static_cast<float>(src->width()),
++                             dst->height() / static_cast<float>(src->height())),
++             mHalfDownEffect, 0.f, 1.f);
++    }
++    slot.depth = std::max(slot.depth * reusePyramid, passes);
++
++    // Upsample into separate targets so the pyramid stays valid for the next radius.
++    for (int i = passes - 1; i >= 0; i--) {
++        SFTRACE_NAME("StrandBlur up");
++        if (!ensureSurface(context, slot.up[i], infoFor(i))) return fail();
++        const auto& dst = slot.up[i];
++        const auto& src = (i == passes - 1) ? slot.down[i + 1] : slot.up[i + 1];
++        const float alpha = std::min(1.0f, filterDepth - i);
++        if (alpha < 1.f) {
++            // Partial last pass: blend over this level's own downsample, as V2 does.
++            draw(dst, slot.down[i]->makeTemporaryImage(), SkMatrix::I(), mUpEffect, 0.f, 1.f);
++        }
++        draw(dst, src->makeTemporaryImage(),
++             SkMatrix::Scale(dst->width() / static_cast<float>(src->width()),
++                             dst->height() / static_cast<float>(src->height())),
++             mUpEffect, step, alpha);
++    }
++
++    slot.result = passes > 0 ? slot.up[0] : slot.down[0];
++    slot.radius = blurRadius;
++    slot.lite = lite;
++    slot.valid = true;
++}
++
++sk_sp<SkImage> StrandBlurFilter::generateTemporaryImage(SkiaGpuContext* context,
++                                                        const DisplaySettings& display,
++                                                        const uint32_t radius,
++                                                        const sk_sp<SkImage> input,
++                                                        const SkRect& blurRect) const {
++    std::lock_guard<std::mutex> lock(mMutex);
++
++    // Leave out partial pixels at the edges, like V2.
++    SkIRect rect;
++    blurRect.roundIn(&rect);
++    if (rect.width() < 1) rect.fRight = rect.fLeft + 1;
++    if (rect.height() < 1) rect.fBottom = rect.fTop + 1;
++
++    const bool lite = mLiteProp.Get(false);
++    // 8-bit unless the input is F16, which only happens with HDR content on screen.
++    const SkColorType colorType = input->colorType() == kRGBA_F16_SkColorType
++            ? kRGBA_F16_SkColorType
++            : kRGBA_8888_SkColorType;
++    const bool cacheable = mPendingCacheable && !context->supportsProtectedContent() &&
++            mPending.display == display;
++
++    Slot* match = nullptr;
++    if (cacheable) {
++        for (auto& slot : mSlots) {
++            if (slot.valid && slot.context == context && slot.rect == rect &&
++                slot.colorType == colorType && sameBackdrop(slot.backdrop, mPending)) {
++                match = &slot;
++                break;
++            }
++        }
++    }
++    mUseCounter++;
++
++    if (match && match->radius == radius && match->lite == lite) {
++        SFTRACE_NAME("StrandBlur hit");
++        mHits++;
++        match->lastUse = mUseCounter;
++        return match->result->makeTemporaryImage();
++    }
++
++    Slot* slot = match;
++    if (slot) {
++        SFTRACE_NAME("StrandBlur partial");
++        mPartialHits++;
++        blurIntoSlot(*slot, context, radius, lite, input, rect, true);
++    } else {
++        mMisses++;
++        // Least recently used slot; uncacheable frames always use slot 0.
++        slot = &mSlots[0];
++        if (cacheable) {
++            for (auto& s : mSlots) {
++                if (!s.valid || s.lastUse < slot->lastUse) slot = &s;
++                if (!s.valid) break;
++            }
++        }
++        slot->valid = false;
++        slot->depth = 0;
++        slot->colorType = colorType;
++        blurIntoSlot(*slot, context, radius, lite, input, rect, false);
++        if (slot->valid && cacheable) {
++            slot->context = context;
++            slot->rect = rect;
++            slot->backdrop = mPending;
++        } else {
++            // Rendered, but not reusable
++            slot->valid = false;
++        }
++    }
++    slot->lastUse = mUseCounter;
++
++    if ((mUseCounter & 1023) == 0) {
++        ALOGD("Strand blur: %" PRIu64 " hits, %" PRIu64 " partial, %" PRIu64 " misses", mHits,
++              mPartialHits, mMisses);
++    }
++    if (!slot->result) {
++        // Allocation failed. Hand back the input; drawBlurRegion scales it by 4x, which is
++        // wrong but visible and recovers on the next frame.
++        return input;
++    }
++    return slot->result->makeTemporaryImage();
++}
++
++} // namespace skia
++} // namespace renderengine
++} // namespace android
+diff --git a/libs/renderengine/skia/filters/StrandBlurFilter.h b/libs/renderengine/skia/filters/StrandBlurFilter.h
+new file mode 100644
+index 0000000..c7f24da
+--- /dev/null
++++ b/libs/renderengine/skia/filters/StrandBlurFilter.h
+@@ -0,0 +1,135 @@
++/*
++ * Copyright (C) 2026 The Strand Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#pragma once
++
++#include <SkImage.h>
++#include <SkRuntimeEffect.h>
++#include <SkSurface.h>
++#include <android-base/properties.h>
++#include <renderengine/DisplaySettings.h>
++#include <renderengine/LayerSettings.h>
++
++#include <mutex>
++#include <vector>
++
++#include "BlurFilter.h"
++#include "RuntimeEffectManager.h"
++
++namespace android {
++namespace renderengine {
++namespace skia {
++
++/**
++ * Dual filter Kawase blur that does as little GPU work as the frame allows.
++ *
++ * It draws the same picture as KawaseBlurDualFilterV2 (same shaders, same radius to step
++ * mapping), and adds:
++ *
++ * Backdrop cache. The blur input is everything drawn below the blurred layer. When those
++ * layers and the display settings are the same as in an earlier frame, the input pixels are
++ * too. The common case is the notification shade over a still home screen or app: only the
++ * shade's own content changes, so the blur is drawn once and then reused.
++ *  - same backdrop, same rect, same radius: nothing is rendered, the last result is returned.
++ *  - same backdrop and rect, new radius (shade or dialog fade in): the downsample pyramid is
++ *    kept and only the upsample passes run.
++ *
++ * Persistent opaque surfaces. Every pass renders to surfaces owned by the filter instead of
++ * scratch targets, in 8-bit opaque formats (no alpha blending read back, and compressible
++ * by the GPU) unless the input needs F16 for HDR. Downsample levels are kept apart from
++ * upsample levels so the pyramid survives a radius change.
++ *
++ * Lite mode. sys.strand.blur.lite=1 caps the pass count at two, which roughly halves the
++ * upsample cost at large radii. The Strand daemon sets it in battery and thermal profiles.
++ */
++class StrandBlurFilter : public BlurFilter {
++public:
++    static constexpr int kMaxLevels = 4;
++    static constexpr int kCacheSlots = 2;
++
++    explicit StrandBlurFilter(RuntimeEffectManager& effectManager);
++    ~StrandBlurFilter() override {}
++
++    void setBackdrop(const DisplaySettings& display, const std::vector<LayerSettings>& layers,
++                     size_t count) override;
++
++    sk_sp<SkImage> generateTemporaryImage(SkiaGpuContext* context, const DisplaySettings& display,
++                                          const uint32_t radius, const sk_sp<SkImage> blurInput,
++                                          const SkRect& blurRect) const override;
++
++private:
++    // A layer below the blur, without the parts that change every frame for the same pixels
++    // (the acquire fence) and without holding on to its buffer.
++    struct LayerSnap {
++        LayerSettings settings;
++        uint64_t bufferId = 0;
++    };
++    struct Backdrop {
++        DisplaySettings display;
++        std::vector<LayerSnap> layers;
++        float maxWhitePoint = 0.f;
++    };
++
++    struct Slot {
++        // What the cached pyramid was made from
++        bool valid = false;
++        const SkiaGpuContext* context = nullptr;
++        Backdrop backdrop;
++        SkIRect rect = SkIRect::MakeEmpty();
++        SkColorType colorType = kUnknown_SkColorType;
++
++        // Downsample pyramid, level 0 at 1/4 of the blur rect
++        sk_sp<SkSurface> down[kMaxLevels];
++        // Upsample targets, and the radius/lite pair that last filled up[0]
++        sk_sp<SkSurface> up[kMaxLevels];
++        sk_sp<SkSurface> result;
++        uint32_t radius = 0;
++        bool lite = false;
++        int depth = 0;  // pyramid levels filled below level 0
++        uint64_t lastUse = 0;
++    };
++
++    static LayerSnap snap(const LayerSettings& layer);
++    static bool sameLayer(const LayerSnap& a, const LayerSnap& b);
++    static bool sameBackdrop(const Backdrop& a, const Backdrop& b);
++
++    void blurIntoSlot(Slot& slot, SkiaGpuContext* context, uint32_t radius, bool lite,
++                      const sk_sp<SkImage>& input, const SkIRect& rect, bool reusePyramid) const;
++    static bool ensureSurface(SkiaGpuContext* context, sk_sp<SkSurface>& surface,
++                              const SkImageInfo& info);
++    void draw(const sk_sp<SkSurface>& dst, const sk_sp<SkImage>& src, const SkMatrix& srcToDst,
++              const sk_sp<SkRuntimeEffect>& effect, float offset, float alpha) const;
++
++    sk_sp<SkRuntimeEffect> mQuarterDownEffect;
++    sk_sp<SkRuntimeEffect> mHalfDownEffect;
++    sk_sp<SkRuntimeEffect> mUpEffect;
++
++    const bool mCacheEnabled;
++    mutable android::base::CachedBoolProperty mLiteProp{"sys.strand.blur.lite"};
++
++    mutable std::mutex mMutex;
++    // Backdrop of the following generateTemporaryImage() calls, set by setBackdrop()
++    Backdrop mPending;
++    bool mPendingCacheable = false;
++
++    mutable Slot mSlots[kCacheSlots];
++    mutable uint64_t mUseCounter = 0;
++    mutable uint64_t mHits = 0, mPartialHits = 0, mMisses = 0;
++};
++
++} // namespace skia
++} // namespace renderengine
++} // namespace android
+diff --git a/services/surfaceflinger/SurfaceFlinger.cpp b/services/surfaceflinger/SurfaceFlinger.cpp
+index 9128394..1e7f947 100644
+--- a/services/surfaceflinger/SurfaceFlinger.cpp
++++ b/services/surfaceflinger/SurfaceFlinger.cpp
+@@ -940,6 +940,10 @@ renderengine::RenderEngine::BlurAlgorithm chooseBlurAlgorithm(bool supportsBlur)
+         return renderengine::RenderEngine::BlurAlgorithm::Gaussian;
+     } else if (algorithm == "kawase") {
+         return renderengine::RenderEngine::BlurAlgorithm::Kawase;
++    } else if (algorithm == "kawase2") {
++        return renderengine::RenderEngine::BlurAlgorithm::KawaseDualFilterV2;
++    } else if (algorithm == "strand" || algorithm.empty()) {
++        return renderengine::RenderEngine::BlurAlgorithm::Strand;
+     } else {
+         return renderengine::RenderEngine::BlurAlgorithm::KawaseDualFilterV2;
+     }
+-- 
+2.56.1
+

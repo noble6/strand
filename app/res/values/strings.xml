@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Strand</string>
+    <string name="tile_label">Strand</string>
+    <string name="tagline">Performance engine</string>
+    <string name="daemon_down">The Strand service isn\'t running.</string>
+
+    <string name="section_profile">Profile</string>
+    <string name="section_more">More</string>
+    <string name="desc_balanced">Stock behaviour. Strand only watches memory pressure.</string>
+    <string name="desc_performance">Higher CPU and GPU floors, display held at full refresh rate.</string>
+    <string name="desc_battery">Capped big cores and GPU, 60 Hz, battery saver and lighter blur.</string>
+    <string name="desc_gaming">Highest floors and full refresh rate, notifications held back.</string>
+    <string name="desc_other">Custom profile.</string>
+    <string name="effective_app">%1$s for %2$s</string>
+
+    <string name="apps_title">Per-app profiles</string>
+    <string name="apps_summary">Switch profile while an app is in front</string>
+    <string name="apps_default">Default</string>
+    <string name="apps_search">Search apps</string>
+
+    <string name="health_title">System health</string>
+    <string name="health_summary">Storage, battery, app optimization</string>
+    <string name="health_storage">Storage</string>
+    <string name="health_storage_value">%1$s free of %2$s</string>
+    <string name="health_battery">Battery</string>
+    <string name="health_battery_value">%1$d%% of design capacity, %2$s cycles</string>
+    <string name="health_battery_temp">Temperature %1$.1f °C</string>
+    <string name="health_optimize">Optimize frequently used apps</string>
+    <string name="health_optimize_desc">Recompiles the apps you use most with their latest usage profiles, so they start and scroll faster.</string>
+    <string name="health_optimize_max">Full speed for the top 3</string>
+    <string name="health_trim">Trim storage</string>
+    <string name="health_trim_desc">Tells the flash which blocks are free (fstrim), which keeps writes fast.</string>
+    <string name="health_cache">Clear app caches</string>
+    <string name="health_cache_desc">Deletes cached files of all apps. Apps rebuild them as needed; nothing you saved is touched.</string>
+    <string name="health_cache_confirm">Clear the caches of all apps?</string>
+    <string name="health_auto">Weekly maintenance</string>
+    <string name="health_auto_desc">Trim and optimize while idle and charging</string>
+    <string name="health_run">Run</string>
+    <string name="health_last">Last: %1$s</string>
+    <string name="health_queued">Queued</string>
+    <string name="health_busy">Working: %1$s</string>
+    <string name="health_no_apps">No usage data yet</string>
+    <string name="health_top_apps">Your top apps: %1$s</string>
+
+    <string name="nerd_title">Nerd mode</string>
+    <string name="nerd_summary">Live graphs and raw counters</string>
+    <string name="nerd_mem_pressure">Memory pressure (some, avg10 %)</string>
+    <string name="nerd_mem_avail">Available memory (MB)</string>
+    <string name="nerd_zram">zram compression ratio</string>
+    <string name="nerd_cpu">CPU frequency (MHz)</string>
+    <string name="nerd_gpu">GPU load (%)</string>
+    <string name="nerd_temp">Battery temperature (°C)</string>
+    <string name="nerd_raw">Raw counters</string>
+
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+</resources>

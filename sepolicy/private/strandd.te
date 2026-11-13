@@ -1,0 +1,68 @@
+typeattribute strandd coredomain;
+init_daemon_domain(strandd)
+
+type strandd_socket, file_type, coredomain_socket, mlstrustedobject;
+type strandd_data_file, file_type, data_file_type, core_data_file_type;
+
+# Runs as root with only these: write system-owned sysfs nodes, FITRIM,
+# PSI triggers.
+allow strandd self:global_capability_class_set { dac_override sys_admin sys_resource };
+
+# Profiles: cpufreq, vm knobs
+allow strandd sysfs_devices_system_cpu:dir r_dir_perms;
+allow strandd sysfs_devices_system_cpu:file rw_file_perms;
+allow strandd proc:file rw_file_perms;
+allow strandd proc_watermark_scale_factor:file rw_file_perms;
+allow strandd proc_watermark_boost_factor:file rw_file_perms;
+allow strandd proc_page_cluster:file rw_file_perms;
+allow strandd proc_dirty:file rw_file_perms;
+allow strandd proc_extra_free_kbytes:file rw_file_perms;
+allow strandd proc_random:file r_file_perms;
+
+# Memory pressure and stats
+allow strandd proc_pressure_mem:file rw_file_perms;
+allow strandd { proc_pressure_cpu proc_pressure_io proc_meminfo }:file r_file_perms;
+allow strandd sysfs_zram:dir search;
+allow strandd sysfs_zram:file r_file_perms;
+r_dir_file(strandd, sysfs_thermal)
+
+# Foreground app for per-app profiles
+allow strandd cgroup:dir search;
+allow strandd cgroup:file r_file_perms;
+r_dir_file(strandd, appdomain)
+
+# Undo journal
+allow strandd strandd_data_file:dir rw_dir_perms;
+allow strandd strandd_data_file:file create_file_perms;
+
+# fstrim /data
+allow strandd system_data_root_file:dir { r_dir_perms ioctl };
+allowxperm strandd system_data_root_file:dir ioctl FITRIM;
+allow strandd labeledfs:filesystem getattr;
+
+# Settings, battery saver, DND, dexopt and cache trimming go through `cmd`,
+# which runs in this domain.
+allow strandd system_file:file rx_file_perms;
+binder_use(strandd)
+binder_call(strandd, system_server)
+allow strandd {
+    notification_service
+    package_service
+    power_service
+    settings_service
+}:service_manager find;
+allow system_server strandd:fd use;
+allow system_server strandd:fifo_file { getattr read write };
+binder_call(system_server, strandd)
+
+# Blur lite and other knobs read by system components
+set_prop(strandd, strand_prop)
+get_prop(strandd, boot_status_prop)
+
+# Clients: the Strand app (system uid) and strandctl over adb
+unix_socket_connect(system_app, strandd, strandd)
+userdebug_or_eng(`unix_socket_connect(shell, strandd, strandd)')
+
+# Stats from generic sysfs nodes (GPU load and clock on kgsl)
+allow strandd sysfs:dir r_dir_perms;
+allow strandd sysfs:file r_file_perms;

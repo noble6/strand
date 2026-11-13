@@ -1,1 +1,4 @@
 traces/
+daemon/*.o
+daemon/strandd
+daemon/strandctl

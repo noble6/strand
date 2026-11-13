@@ -1,0 +1,37 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+cc_defaults {
+    name: "strand_defaults",
+    system_ext_specific: true,
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+    cpp_std: "c++17",
+}
+
+cc_binary {
+    name: "strandd",
+    defaults: ["strand_defaults"],
+    srcs: [
+        "actions.cpp",
+        "config.cpp",
+        "engine.cpp",
+        "main.cpp",
+        "util.cpp",
+    ],
+    shared_libs: [
+        "libcutils",
+        "liblog",
+    ],
+    init_rc: ["strandd.rc"],
+}
+
+cc_binary {
+    name: "strandctl",
+    defaults: ["strand_defaults"],
+    srcs: ["strandctl.cpp"],
+}

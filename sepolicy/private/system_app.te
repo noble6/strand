@@ -1,0 +1,2 @@
+# The Strand app reads the profile state it shows
+get_prop(system_app, strand_prop)

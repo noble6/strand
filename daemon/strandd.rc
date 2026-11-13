@@ -1,0 +1,9 @@
+on post-fs-data
+    mkdir /data/misc/strand 0700 root root
+
+service strandd /system_ext/bin/strandd
+    class main
+    user root
+    group root system readproc
+    capabilities DAC_OVERRIDE SYS_ADMIN SYS_RESOURCE
+    socket strandd stream 0666 system system
