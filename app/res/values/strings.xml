@@ -33,11 +33,15 @@
     <string name="health_optimize_max">Full speed for the top 3</string>
     <string name="health_trim">Trim storage</string>
     <string name="health_trim_desc">Tells the flash which blocks are free (fstrim), which keeps writes fast.</string>
+    <string name="health_gc">Defragment storage</string>
+    <string name="health_gc_desc">Runs the flash file system\'s garbage collection, which merges half-used blocks. Storage that has been in use for weeks gets fast again. Also runs by itself while the device is idle.</string>
+    <string name="autogame_title">Auto game mode</string>
+    <string name="autogame_desc">Games get the Gaming profile, and Strand stays out of their way: no memory compaction or maintenance until they close. Heavy GPU work in any app gets the same quiet system.</string>
     <string name="health_cache">Clear app caches</string>
     <string name="health_cache_desc">Deletes cached files of all apps. Apps rebuild them as needed; nothing you saved is touched.</string>
     <string name="health_cache_confirm">Clear the caches of all apps?</string>
     <string name="health_auto">Weekly maintenance</string>
-    <string name="health_auto_desc">Trim and optimize while idle and charging</string>
+    <string name="health_auto_desc">Storage GC daily while idle; trim, GC and app optimization weekly while idle and charging. Stops the moment you pick the device up.</string>
     <string name="health_run">Run</string>
     <string name="health_last">Last: %1$s</string>
     <string name="health_queued">Queued</string>

@@ -11,5 +11,7 @@ public class StrandApplication extends Application {
     public void onCreate() {
         super.onCreate();
         ResonaController.get(this).start();
+        Games.start(this);
+        MaintenanceJobService.ensureScheduled(this);
     }
 }

@@ -35,6 +35,10 @@ r_dir_file(strandd, appdomain)
 allow strandd strandd_data_file:dir rw_dir_perms;
 allow strandd strandd_data_file:file create_file_perms;
 
+# Storage GC (gc_urgent) in idle windows, like vold's idle maintenance
+allow strandd sysfs_fs_f2fs:dir r_dir_perms;
+allow strandd sysfs_fs_f2fs:file rw_file_perms;
+
 # fstrim /data
 allow strandd system_data_root_file:dir { r_dir_perms ioctl };
 allowxperm strandd system_data_root_file:dir ioctl FITRIM;

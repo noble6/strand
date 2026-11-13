@@ -186,11 +186,37 @@ final class ResonaHardware {
         }
     }
 
+    /** Bit-perfect: the file's own rate and bits straight to the DAC; Android skips all effects. */
+    static boolean setBitPerfect(Context c, AudioDeviceInfo d, boolean on) {
+        AudioManager am = c.getSystemService(AudioManager.class);
+        try {
+            if (!on) {
+                am.clearPreferredMixerAttributes(MEDIA, d);
+                return true;
+            }
+            AudioMixerAttributes m = bestMixer(am, d, true);
+            return m != null && am.setPreferredMixerAttributes(MEDIA, d, m);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    static boolean bitPerfectOn(Context c, AudioDeviceInfo d) {
+        try {
+            AudioMixerAttributes m = c.getSystemService(AudioManager.class)
+                    .getPreferredMixerAttributes(MEDIA, d);
+            return m != null && m.getMixerBehavior() == AudioMixerAttributes.MIXER_BEHAVIOR_BIT_PERFECT;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
     static boolean hiResOn(Context c, AudioDeviceInfo d) {
         try {
             AudioMixerAttributes m = c.getSystemService(AudioManager.class)
                     .getPreferredMixerAttributes(MEDIA, d);
-            return m != null && m.getFormat().getSampleRate() > 48000;
+            return m != null && m.getFormat().getSampleRate() > 48000
+                    && m.getMixerBehavior() != AudioMixerAttributes.MIXER_BEHAVIOR_BIT_PERFECT;
         } catch (Throwable t) {
             return false;
         }

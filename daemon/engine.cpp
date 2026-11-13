@@ -49,7 +49,7 @@ bool decode(const std::string& line, Applied* ap) {
     }
     if (f.size() < 2 || f.back().empty() || f.back()[0] != '=') return false;
     int kind = atoi(f[0].c_str());
-    if (kind < Action::Write || kind > Action::FixedPerf) return false;
+    if (kind < Action::Write || kind > Action::DeviceConfig) return false;
     ap->action.kind = static_cast<Action::Kind>(kind);
     ap->action.args.assign(f.begin() + 1, f.end() - 1);
     ap->original = f.back().substr(1);
@@ -118,6 +118,8 @@ void Engine::loadState() {
     while (std::getline(in, line)) {
         auto w = split(line);
         if (w.size() == 2 && w[0] == "profile" && cfg_.find(w[1])) userProfile_ = w[1];
+        else if (w.size() == 2 && w[0] == "autogame") autoGame_ = w[1] == "1";
+        else if (w.size() == 2 && w[0] == "game") games_.insert(w[1]);
         else if (w.size() == 3 && w[0] == "app" && cfg_.find(w[2])) appProfiles_[w[1]] = w[2];
     }
     logi("state: profile %s, %zu app profiles", userProfile_.c_str(), appProfiles_.size());
@@ -126,6 +128,8 @@ void Engine::loadState() {
 void Engine::saveStateLocked() {
     std::string s = "profile " + userProfile_ + "\n";
     for (auto& [pkg, prof] : appProfiles_) s += "app " + pkg + " " + prof + "\n";
+    s += std::string("autogame ") + (autoGame_ ? "1" : "0") + "\n";
+    for (auto& g : games_) s += "game " + g + "\n";
     // Write a new file and rename it, so a crash never leaves half a state
     std::string tmp = std::string(kState) + ".new";
     int fd = open(realPath(tmp).c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
@@ -150,7 +154,32 @@ void Engine::saveJournal() {
 std::string Engine::effectiveLocked() {
     auto it = appProfiles_.find(topApp_);
     if (it != appProfiles_.end() && cfg_.find(it->second)) return it->second;
+    if (autoGame_ && games_.count(topApp_) && cfg_.find("gaming")) return "gaming";
     return userProfile_;
+}
+
+bool Engine::quietLocked() {
+    return games_.count(topApp_) > 0 || gpuHeavy_;
+}
+
+bool Engine::quiet() {
+    std::lock_guard<std::mutex> lock(m_);
+    return quietLocked();
+}
+
+void Engine::setGames(const std::vector<std::string>& pkgs, bool add) {
+    std::lock_guard<std::mutex> lock(m_);
+    if (!add) games_.clear();
+    games_.insert(pkgs.begin(), pkgs.end());
+    saveStateLocked();
+    applyCv_.notify_all();
+}
+
+void Engine::setAutoGame(bool on) {
+    std::lock_guard<std::mutex> lock(m_);
+    autoGame_ = on;
+    saveStateLocked();
+    applyCv_.notify_all();
 }
 
 void Engine::setUserProfile(const std::string& name) {
@@ -177,7 +206,7 @@ void Engine::clearAppProfiles() {
 
 bool Engine::wantsTopApp() {
     std::lock_guard<std::mutex> lock(m_);
-    return !appProfiles_.empty();
+    return !appProfiles_.empty() || !games_.empty();
 }
 
 void Engine::onTopApp(const std::string& pkg) {
@@ -196,7 +225,8 @@ void Engine::onPressureEvent() {
         pressureWanted_ = true;
         applyCv_.notify_all();
     }
-    if (now - lastKickMs_ >= cfg_.kickIntervalSec * 1000LL || lastKickMs_ == 0) {
+    // No compaction while a game or heavy GPU work runs: it stalls the allocating threads.
+    if (!quietLocked() && (now - lastKickMs_ >= cfg_.kickIntervalSec * 1000LL || lastKickMs_ == 0)) {
         // Kicks like compact_memory block the writer until the kernel is
         // done, so they run on the apply thread.
         lastKickMs_ = now;
@@ -207,7 +237,23 @@ void Engine::onPressureEvent() {
 }
 
 void Engine::tick() {
+    // Heavy GPU work: over the threshold for gpuBusySec, released 15 points below it
+    int gpu = -1;
+    if (!cfg_.gpuBusyPath.empty()) {
+        std::string v;
+        if (readLine(cfg_.gpuBusyPath, &v)) gpu = atoi(trim(v).c_str());
+    }
     std::lock_guard<std::mutex> lock(m_);
+    if (gpu >= 0) {
+        int64_t now = nowMs();
+        if (gpu >= cfg_.gpuBusyPct) {
+            if (!gpuBusySinceMs_) gpuBusySinceMs_ = now;
+            if (now - gpuBusySinceMs_ >= cfg_.gpuBusySec * 1000LL) gpuHeavy_ = true;
+        } else {
+            gpuBusySinceMs_ = 0;
+            if (gpu < cfg_.gpuBusyPct - 15) gpuHeavy_ = false;
+        }
+    }
     if (pressureWanted_ && nowMs() - lastPressureMs_ >= cfg_.calmSec * 1000LL) {
         pressureWanted_ = false;
         applyCv_.notify_all();
@@ -275,12 +321,32 @@ void Engine::applyLoop() {
 bool Engine::queue(Job job) {
     std::lock_guard<std::mutex> lock(m_);
     if (jobs_.size() >= 8) return false;
+    stopMaint_ = false;
     jobs_.push_back(std::move(job));
     maintCv_.notify_all();
     return true;
 }
 
 bool Engine::queueTrim() { return queue({Job::Trim, "", {}}); }
+bool Engine::queueGc() { return queue({Job::Gc, "", {}}); }
+
+void Engine::stopMaintenance() {
+    std::lock_guard<std::mutex> lock(m_);
+    stopMaint_ = true;
+    jobs_.clear();
+}
+
+bool Engine::waitWhileQuiet() {
+    for (;;) {
+        {
+            std::lock_guard<std::mutex> lock(m_);
+            if (stopMaint_) return false;
+            if (!quietLocked()) return true;
+            maintState_ = "waiting: game or heavy GPU work in front";
+        }
+        sleep(5);
+    }
+}
 bool Engine::queueClearCache() { return queue({Job::ClearCache, "", {}}); }
 bool Engine::queueDexopt(const std::string& filter, const std::vector<std::string>& pkgs) {
     return queue({Job::Dexopt, filter, pkgs});
@@ -293,7 +359,7 @@ void Engine::maintLoop() {
         Job job = jobs_.front();
         jobs_.pop_front();
         lock.unlock();
-        runJob(job);
+        if (waitWhileQuiet()) runJob(job);
         lock.lock();
         maintState_ = "idle";
     }
@@ -337,9 +403,13 @@ void Engine::runJob(const Job& job) {
                                            freeBytes("/data"));
             break;
         }
+        case Job::Gc:
+            runGc();
+            break;
         case Job::Dexopt: {
             int ok = 0, n = 0;
             for (auto& pkg : job.pkgs) {
+                if (!waitWhileQuiet()) break;
                 n++;
                 state("dexopt " + std::to_string(n) + "/" + std::to_string(job.pkgs.size()) +
                       " " + pkg);
@@ -353,6 +423,73 @@ void Engine::runJob(const Job& job) {
             break;
         }
     }
+}
+
+/*
+ * Storage GC, like vold's idle maintenance: put f2fs in urgent GC so it
+ * merges partly used segments into free ones, the main reason flash storage
+ * (and so the whole device) gets slower over weeks. Runs until few dirty
+ * segments are left, progress stops, the time is up, the idle window ends
+ * (stop) or a game comes to the front.
+ */
+void Engine::runGc() {
+    static const int pollMs = getenv("STRAND_GC_POLL_MS") ? atoi(getenv("STRAND_GC_POLL_MS")) : 5000;
+    std::vector<std::string> devs;
+    if (DIR* d = opendir(realPath("/sys/fs/f2fs").c_str())) {
+        while (auto* e = readdir(d)) {
+            std::string base = std::string("/sys/fs/f2fs/") + e->d_name;
+            std::string v;
+            if (e->d_name[0] != '.' && readLine(base + "/dirty_segments", &v) &&
+                readLine(base + "/gc_urgent", &v))
+                devs.push_back(base);
+        }
+        closedir(d);
+    }
+    if (devs.empty()) {
+        std::lock_guard<std::mutex> lock(m_);
+        lastGc_ = "no f2fs";
+        return;
+    }
+    auto dirty = [](const std::string& dev) {
+        std::string v;
+        return readLine(dev + "/dirty_segments", &v) ? atol(v.c_str()) : -1L;
+    };
+    std::string report;
+    for (auto& dev : devs) {
+        long start = dirty(dev);
+        if (start <= cfg_.gcTargetDirty) {
+            report += " " + dev.substr(13) + ":clean(" + std::to_string(start) + ")";
+            continue;
+        }
+        std::string orig;
+        readLine(dev + "/gc_urgent", &orig);
+        orig = trim(orig);
+        writeFile(dev + "/gc_urgent", "1");
+        int64_t t0 = nowMs(), lastProgress = t0;
+        long best = start, now = start;
+        const char* why = "time";
+        for (;;) {
+            {
+                std::lock_guard<std::mutex> lock(m_);
+                maintState_ = "gc " + dev.substr(13) + " " + std::to_string(now) + " dirty";
+                if (stopMaint_) { why = "stopped"; break; }
+                if (quietLocked()) { why = "game"; break; }
+            }
+            usleep(pollMs * 1000);
+            now = dirty(dev);
+            if (now < 0) { why = "gone"; break; }
+            if (now <= cfg_.gcTargetDirty) { why = "done"; break; }
+            if (now < best - 1) { best = now; lastProgress = nowMs(); }
+            if (nowMs() - lastProgress > 12LL * pollMs) { why = "no progress"; break; }
+            if (nowMs() - t0 > cfg_.gcMaxMin * 60000LL) break;
+        }
+        writeFile(dev + "/gc_urgent", orig.empty() ? "0" : orig);
+        report += " " + dev.substr(13) + ":" + std::to_string(start) + "->" + std::to_string(now) +
+                  "(" + why + ")";
+    }
+    std::lock_guard<std::mutex> lock(m_);
+    lastGc_ = "dirty" + report;
+    logi("gc%s", report.c_str());
 }
 
 std::string Engine::userProfile() {
@@ -372,7 +509,12 @@ std::string Engine::status() {
       << "maint " << maintState_ << "\n"
       << "last_trim " << lastTrim_ << "\n"
       << "last_clearcache " << lastClearCache_ << "\n"
-      << "last_dexopt " << lastDexopt_ << "\n";
+      << "last_dexopt " << lastDexopt_ << "\n"
+      << "last_gc " << lastGc_ << "\n"
+      << "quiet " << (quietLocked() ? 1 : 0) << "\n"
+      << "gpu_heavy " << (gpuHeavy_ ? 1 : 0) << "\n"
+      << "autogame " << (autoGame_ ? 1 : 0) << "\n"
+      << "games " << games_.size() << "\n";
     return o.str();
 }
 

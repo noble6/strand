@@ -4,6 +4,7 @@
 #include <condition_variable>
 #include <deque>
 #include <map>
+#include <set>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -32,6 +33,14 @@ class Engine {
     bool queueTrim();
     bool queueClearCache();
     bool queueDexopt(const std::string& filter, const std::vector<std::string>& pkgs);
+    bool queueGc();
+    void stopMaintenance();  // the idle window ended: finish the current step, drop the rest
+
+    // Games: the app sends the installed games; one in front means quiet,
+    // and with auto game on, the gaming profile.
+    void setGames(const std::vector<std::string>& pkgs, bool add);
+    void setAutoGame(bool on);
+    bool quiet();
 
     const Config& config() const { return cfg_; }
     std::string userProfile();
@@ -41,7 +50,7 @@ class Engine {
 
   private:
     struct Job {
-        enum { Trim, ClearCache, Dexopt } kind;
+        enum { Trim, ClearCache, Dexopt, Gc } kind;
         std::string filter;
         std::vector<std::string> pkgs;
     };
@@ -49,6 +58,9 @@ class Engine {
     void applyLoop();
     void maintLoop();
     void runJob(const Job& job);
+    void runGc();
+    bool waitWhileQuiet();  // maintenance pauses while quiet; false if stopped
+    bool quietLocked();
     void saveJournal();
     void loadState();
     void saveStateLocked();
@@ -66,6 +78,11 @@ class Engine {
     std::string topApp_;
     bool pressureWanted_ = false;
     bool kickPending_ = false;
+    std::set<std::string> games_;
+    bool autoGame_ = true;
+    int64_t gpuBusySinceMs_ = 0;
+    bool gpuHeavy_ = false;
+    bool stopMaint_ = false;
 
     // What is applied, owned by the apply thread (read under m_)
     std::string appliedProfile_;
@@ -77,7 +94,8 @@ class Engine {
 
     std::deque<Job> jobs_;
     std::string maintState_ = "idle";
-    std::string lastTrim_ = "never", lastClearCache_ = "never", lastDexopt_ = "never";
+    std::string lastTrim_ = "never", lastClearCache_ = "never", lastDexopt_ = "never",
+                lastGc_ = "never";
 
     std::thread applyThread_, maintThread_;
 };

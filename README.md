@@ -33,6 +33,19 @@ journaled in `/data/misc/strand/journal` and undone when the profile is left,
 when the daemon restarts after a crash, or (for settings) after a reboot.
 The chosen profile and per-app list are kept in `/data/misc/strand/state`.
 
+### Staying fast over months
+
+- Storage GC: daily while idle, the app asks strandd to put f2fs in urgent GC
+  (the same mechanism vold's idle maintenance uses) until few dirty segments
+  are left. Weekly while idle and charging: fstrim, GC, and recompiling the
+  most used apps with their latest profiles. The job holds the idle window
+  and strandd stops the moment Android ends it, so it never competes with use.
+- Games: the app sends the installed games. One in front gets the gaming
+  profile (auto game mode) and a quiet system; so does any app that keeps the
+  GPU above `gpu_busy_pct` for `gpu_busy_s`. Quiet means no compaction kicks
+  and no maintenance until it ends.
+- Battery profile: Doze about 10 minutes after the screen goes off.
+
 ### Config
 
 `strand.conf` then `device.conf`; a later file adds lines to the same
@@ -59,6 +72,8 @@ Init socket `/dev/socket/strandd`, one command per line. The reply is
 | `profile [NAME]` | get or set the profile |
 | `app PKG PROFILE\|none`, `apps [clear]` | per-app profiles |
 | `trim` | FITRIM on `[trim]` paths |
+| `gc`, `stop` | f2fs GC until clean; `stop` ends maintenance (idle window over) |
+| `games clear`, `games add PKG...`, `autogame on\|off` | game list and auto game mode |
 | `clearcache` | `pm trim-caches` for every app |
 | `dexopt FILTER PKG...` | `pm compile -m FILTER -f` (speed-profile, speed, verify, everything) |
 

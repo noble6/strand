@@ -82,6 +82,23 @@ public class MainActivity extends Activity {
             mColumn.addView(card);
         }
 
+        LinearLayout game = new LinearLayout(this);
+        game.setOrientation(LinearLayout.HORIZONTAL);
+        game.setGravity(Gravity.CENTER_VERTICAL);
+        game.setBackgroundResource(R.drawable.card);
+        int pad = Ui.dp(this, 18);
+        game.setPadding(pad, pad, pad, pad);
+        LinearLayout gt = new LinearLayout(this);
+        gt.setOrientation(LinearLayout.VERTICAL);
+        gt.addView(Ui.text(this, getString(R.string.autogame_title), 18, R.color.text));
+        gt.addView(Ui.text(this, getString(R.string.autogame_desc), 14, R.color.text_dim));
+        game.addView(gt, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        android.widget.Switch gs = new android.widget.Switch(this);
+        gs.setChecked(!"0".equals(status.map().get("autogame")));
+        gs.setOnCheckedChangeListener((b, on) -> StrandClient.async("autogame " + (on ? "on" : "off"), null));
+        game.addView(gs);
+        mColumn.addView(game);
+
         mColumn.addView(Ui.section(this, getString(R.string.section_more)));
         addLink(R.string.sound_title, R.string.sound_summary,
                 org.strand.engine.resona.ResonaActivity.class);

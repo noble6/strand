@@ -24,7 +24,7 @@ public class HealthActivity extends Activity {
 
     private final Handler mHandler = new Handler(Looper.getMainLooper());
     private TextView mStorage, mBattery, mBatteryTemp, mTopApps;
-    private TextView mOptStatus, mTrimStatus, mCacheStatus;
+    private TextView mOptStatus, mTrimStatus, mCacheStatus, mGcStatus;
     private List<String> mTop = new ArrayList<>();
     private boolean mResumed;
 
@@ -75,6 +75,12 @@ public class HealthActivity extends Activity {
         trim.addView(Ui.button(this, getString(R.string.health_run),
                 v -> send("trim", mTrimStatus)));
         col.addView(trim);
+
+        LinearLayout gc = Ui.card(this, getString(R.string.health_gc),
+                getString(R.string.health_gc_desc));
+        mGcStatus = status(gc);
+        gc.addView(Ui.button(this, getString(R.string.health_run), v -> send("gc", mGcStatus)));
+        col.addView(gc);
 
         LinearLayout cache = Ui.card(this, getString(R.string.health_cache),
                 getString(R.string.health_cache_desc));
@@ -217,6 +223,8 @@ public class HealthActivity extends Activity {
         line(mOptStatus, busy.startsWith("dexopt") ? busy : null, s.get("last_dexopt"));
         line(mTrimStatus, busy.equals("trim") ? busy : null, s.get("last_trim"));
         line(mCacheStatus, busy.equals("clearcache") ? busy : null, s.get("last_clearcache"));
+        line(mGcStatus, busy.startsWith("gc") || busy.startsWith("waiting") ? busy : null,
+                s.get("last_gc"));
     }
 
     private void line(TextView t, String busy, String last) {
@@ -234,6 +242,9 @@ public class HealthActivity extends Activity {
         String[] w = last.split(" ");
         if (w.length >= 2 && w[0].equals("trimmed")) {
             return "trimmed " + Ui.bytes(MainActivity.parse(w[1]));
+        }
+        if (w.length >= 2 && w[0].equals("dirty")) {
+            return "storage GC:" + last.substring(5);
         }
         if (w.length >= 6 && w[0].equals("rc") && w[2].equals("free")) {
             long freed = MainActivity.parse(w[5]) - MainActivity.parse(w[3]);

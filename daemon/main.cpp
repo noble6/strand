@@ -151,6 +151,31 @@ std::string handle(Engine& engine, const std::string& line) {
         return "ok\n" + engine.apps();
     }
     if (c == "trim") return engine.queueTrim() ? "ok queued\n" : "err busy\n";
+    if (c == "gc") return engine.queueGc() ? "ok queued\n" : "err busy\n";
+    if (c == "stop") {
+        engine.stopMaintenance();
+        return "ok\n";
+    }
+    if (c == "autogame") {
+        if (w.size() != 2 || (w[1] != "on" && w[1] != "off")) return "err usage: autogame on|off\n";
+        engine.setAutoGame(w[1] == "on");
+        return "ok\n";
+    }
+    if (c == "games") {
+        // games clear | games add PKG...
+        if (w.size() >= 2 && w[1] == "clear") {
+            engine.setGames({}, false);
+            return "ok\n";
+        }
+        if (w.size() < 3 || w[1] != "add") return "err usage: games clear | games add PKG...\n";
+        std::vector<std::string> pkgs;
+        for (size_t i = 2; i < w.size(); i++) {
+            if (!validName(w[i])) return "err bad package " + w[i] + "\n";
+            pkgs.push_back(w[i]);
+        }
+        engine.setGames(pkgs, true);
+        return "ok\n";
+    }
     if (c == "clearcache") return engine.queueClearCache() ? "ok queued\n" : "err busy\n";
     if (c == "dexopt") {
         // dexopt FILTER PKG...

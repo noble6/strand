@@ -17,7 +17,8 @@ int main(int argc, char** argv) {
                 "usage: strandctl COMMAND [ARGS]\n"
                 "  ping | status | stats | profiles | profile [NAME]\n"
                 "  app PKG PROFILE|none | apps [clear]\n"
-                "  trim | clearcache | dexopt FILTER PKG...\n");
+                "  trim | gc | clearcache | dexopt FILTER PKG... | stop\n"
+                "  games clear | games add PKG... | autogame on|off\n");
         return 2;
     }
     std::string line;

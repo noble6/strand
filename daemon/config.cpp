@@ -10,7 +10,7 @@
 namespace strand {
 
 std::string Action::describe() const {
-    static const char* names[] = {"write", "setting", "powersave", "dnd", "kick", "prop", "fixedperf"};
+    static const char* names[] = {"write", "setting", "powersave", "dnd", "kick", "prop", "fixedperf", "deviceconfig"};
     std::string s = names[kind];
     for (auto& a : args) s += " " + a;
     return s;
@@ -30,6 +30,8 @@ static bool parseAction(const std::vector<std::string>& w, Action* a, std::strin
         a->kind = Action::Setting;
     } else if (k == "powersave" && n == 1 && (w[1] == "on" || w[1] == "off")) {
         a->kind = Action::PowerSave;
+    } else if (k == "deviceconfig" && n == 3) {
+        a->kind = Action::DeviceConfig;
     } else if (k == "fixedperf" && n == 1 && (w[1] == "on" || w[1] == "off")) {
         a->kind = Action::FixedPerf;
     } else if (k == "dnd" && n == 1 &&
@@ -82,12 +84,22 @@ bool Config::load(const std::vector<std::string>& files, std::string* err) {
                         profile = &profiles.back();
                     }
                 } else if (section != "memory" && section != "pressure" && section != "stats" &&
-                           section != "trim") {
+                           section != "trim" && section != "adaptive") {
                     return fail("unknown section " + section);
                 }
                 continue;
             }
             size_t eq = line.find('=');
+            if (eq != std::string::npos && section == "adaptive") {
+                std::string key = trim(line.substr(0, eq)), val = trim(line.substr(eq + 1));
+                if (key == "gpu_busy_path") gpuBusyPath = val;
+                else if (key == "gpu_busy_pct") gpuBusyPct = atoi(val.c_str());
+                else if (key == "gpu_busy_s") gpuBusySec = atoi(val.c_str());
+                else if (key == "gc_target_dirty") gcTargetDirty = atoi(val.c_str());
+                else if (key == "gc_max_min") gcMaxMin = atoi(val.c_str());
+                else return fail("unknown key " + key);
+                continue;
+            }
             if (eq != std::string::npos && (section == "memory" || section == "profile")) {
                 std::string key = trim(line.substr(0, eq)), val = trim(line.substr(eq + 1));
                 if (section == "profile" && key == "label") {

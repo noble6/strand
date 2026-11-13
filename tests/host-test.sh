@@ -39,6 +39,9 @@ case "\$1 \$2" in
 "settings delete") rm -f "\$S/\$3.\$4" ;;
 "power set-mode") echo "\$3" >"\$S/global.low_power" ;;
 "power set-fixed-performance-mode-enabled") echo "\$3" >"\$S/fixedperf" ;;
+"device_config get") cat "\$S/dc.\$3.\$4" 2>/dev/null || echo null ;;
+"device_config put") echo "\$5" >"\$S/dc.\$3.\$4" ;;
+"device_config delete") rm -f "\$S/dc.\$3.\$4" ;;
 "notification set_dnd") case \$3 in off) echo 0;; priority) echo 1;; none) echo 2;; alarms) echo 3;; esac >"\$S/global.zen_mode" ;;
 esac
 EOS
@@ -46,6 +49,9 @@ chmod +x "$T/cmd"
 echo 0 >"$T/settings/global.low_power"; echo 0 >"$T/settings/global.zen_mode"
 echo 120.0 >"$T/settings/system.peak_refresh_rate"
 
+# f2fs for the GC job
+F=$R/sys/fs/f2fs/dm-5; mkdir -p "$F"; echo 9000 >"$F/dirty_segments"; echo 0 >"$F/gc_urgent"
+export STRAND_GC_POLL_MS=100
 export STRAND_ROOT=$R STRAND_CMD=$T/cmd STRAND_SOCKET=$T/sock
 export STRAND_CONFIG="$HERE/config/strand.conf $HERE/tests/device.conf"
 start() { "$HERE/daemon/strandd" 2>>"$T/strandd.log" & PID=$!; for _ in $(seq 50); do [ -S "$T/sock" ] && return; sleep 0.1; done; fail "no socket"; }
@@ -74,6 +80,7 @@ ctl profile battery >/dev/null; settle
 [ "$(s global.low_power)" = 1 ] || fail "battery saver"
 [ "$(s system.peak_refresh_rate)" = 60.0 ] || fail "peak refresh"
 [ "$(cat $R/props/sys.strand.blur.lite)" = 1 ] || fail "blur lite"
+[ "$(s dc.device_idle.inactive_to)" = 600000 ] || fail "doze timing"
 grep -q '60.0' "$R/data/misc/strand/journal" || fail "journal"
 
 # Crash while in battery: the new daemon undoes the old run, reapplies
@@ -86,6 +93,7 @@ ctl profile balanced >/dev/null; settle
 [ "$(s system.peak_refresh_rate)" = 120.0 ] || fail "peak not restored after crash"
 [ "$(v $P/policy7/scaling_max_freq)" = 2700000 ] || fail "cap not restored after crash"
 [ "$(cat $R/props/sys.strand.blur.lite)" = "" ] || fail "blur lite not restored"
+[ "$(s dc.device_idle.inactive_to)" = null ] || fail "doze timing not restored"
 
 # Per-app: gaming while com.game is on top, back to the user profile after
 ctl profile balanced >/dev/null
@@ -121,5 +129,49 @@ ctl dexopt speed com.a com.b >/dev/null; ctl clearcache >/dev/null; sleep 0.5
 grep -q 'package compile -m speed -f com.b' "$T/cmd.log" || fail dexopt
 grep -q 'package trim-caches' "$T/cmd.log" || fail clearcache
 ctl dexopt bogus com.a >/dev/null && fail "bad filter accepted"
+
+# Auto game mode: a known game in front gets the gaming profile and quiet mode
+ctl apps clear >/dev/null; ctl profile balanced >/dev/null
+ctl games add com.racer >/dev/null
+sleep 100 & RACER=$!
+mkdir -p "$R/proc/$RACER"; printf 'com.racer\0' >"$R/proc/$RACER/cmdline"
+echo $RACER >"$R/dev/cpuset/top-app/cgroup.procs"
+sleep 1.6
+ctl status | grep -q '^effective gaming$' || { ctl status; fail "auto game profile"; }
+ctl status | grep -q '^quiet 1$' || fail "quiet with a game in front"
+# Maintenance waits while the game runs
+ctl gc >/dev/null; sleep 0.5
+ctl status | grep -q '^maint waiting' || { ctl status; fail "gc did not wait for the game"; }
+[ "$(cat $F/gc_urgent)" = 0 ] || fail "gc ran during a game"
+ctl autogame off >/dev/null; sleep 0.5
+ctl status | grep -q '^effective balanced$' || fail "autogame off"
+ctl autogame on >/dev/null
+
+# Game ends: GC runs until few dirty segments are left, then restores gc_urgent
+( until grep -q 1 "$F/gc_urgent"; do sleep 0.05; done
+  for d in 7000 5000 3000 1000 400; do sleep 0.3; echo $d >"$F/dirty_segments"; done ) &
+: >"$R/dev/cpuset/top-app/cgroup.procs"
+kill $RACER
+for _ in $(seq 100); do ctl status | grep -q '^last_gc dirty' && break; sleep 0.2; done
+ctl status | grep -q 'last_gc dirty dm-5:9000->400(done)' || { ctl status; fail "gc"; }
+[ "$(cat $F/gc_urgent)" = 0 ] || fail "gc_urgent not restored"
+# The idle window ends: stop interrupts a GC that is making no progress
+echo 8000 >"$F/dirty_segments"
+ctl gc >/dev/null; sleep 0.4
+[ "$(cat $F/gc_urgent)" = 1 ] || fail "gc did not start"
+ctl stop >/dev/null
+for _ in $(seq 30); do grep -q 0 "$F/gc_urgent" && break; sleep 0.1; done
+ctl status | grep -q 'last_gc dirty dm-5:8000->8000(stopped)' || { ctl status; fail "stop"; }
+[ "$(cat $F/gc_urgent)" = 0 ] || fail "gc_urgent not restored after stop"
+ctl games clear >/dev/null
+
+# Heavy GPU work (any app) makes the system quiet; it lifts once the load drops
+mkdir -p "$R/sys/class/kgsl/kgsl-3d0"; echo "95 %" >"$R/sys/class/kgsl/kgsl-3d0/gpu_busy_percentage"
+sleep 2.5
+ctl status | grep -q '^gpu_heavy 1$' || { ctl status; fail "gpu heavy"; }
+ctl status | grep -q '^quiet 1$' || fail "quiet on gpu load"
+echo "20 %" >"$R/sys/class/kgsl/kgsl-3d0/gpu_busy_percentage"
+sleep 1.5
+ctl status | grep -q '^quiet 0$' || fail "quiet after gpu load"
 ctl profile nope >/dev/null && fail "unknown profile accepted"
 echo "all host tests passed"

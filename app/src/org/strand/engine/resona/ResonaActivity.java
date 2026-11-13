@@ -418,6 +418,16 @@ public class ResonaActivity extends Activity implements ResonaController.Listene
                             + " for this output, Resona included",
                     ResonaHardware.hiResOn(this, out), (b, v) -> {
                         if (!ResonaHardware.setHiRes(this, out, v)) b.setChecked(!v);
+                        else rebuild();
+                    }));
+        }
+        if (out != null && ResonaHardware.bestMixer(am, out, true) != null) {
+            mHardware.addView(toggle("Bit-perfect",
+                    "Each song at its own rate and bit depth, untouched. Android bypasses every "
+                            + "effect in this mode, Resona included",
+                    ResonaHardware.bitPerfectOn(this, out), (b, v) -> {
+                        if (!ResonaHardware.setBitPerfect(this, out, v)) b.setChecked(!v);
+                        else rebuild();
                     }));
         }
     }

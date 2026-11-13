@@ -117,6 +117,9 @@ bool apply(const Action& a, std::string* original) {
         case Action::PowerSave:
             if (!getSetting("global", "low_power", original)) return false;
             return setPowerSave(v[0] == "on");
+        case Action::DeviceConfig:
+            if (cmd({"device_config", "get", v[0], v[1]}, original) != 0) return false;
+            return cmd({"device_config", "put", v[0], v[1], v[2]}) == 0;
         case Action::FixedPerf:
             *original = "false";
             return setFixedPerf(v[0] == "on");
@@ -146,6 +149,12 @@ void revert(const Applied& ap) {
             break;
         case Action::FixedPerf:
             setFixedPerf(ap.original == "true");
+            break;
+        case Action::DeviceConfig:
+            if (ap.original == "null" || ap.original.empty())
+                cmd({"device_config", "delete", v[0], v[1]});
+            else
+                cmd({"device_config", "put", v[0], v[1], ap.original});
             break;
         case Action::Dnd:
             setDnd(zenName(ap.original));
