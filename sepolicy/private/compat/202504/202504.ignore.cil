@@ -1,0 +1,3 @@
+;; Strand's public types are new: no mapping to older policy. The device's
+;; system_ext compat file declares new_objects (ruan's does); this adds to it.
+(typeattributeset new_objects (strandd strandd_exec))

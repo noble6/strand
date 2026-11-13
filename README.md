@@ -25,6 +25,10 @@ Sync this repo to `vendor/strand`, then in the device:
 
 Apply `patches/frameworks/native/*` for the blur. Device policy grants
 strandd any vendor sysfs it reads (see `sepolicy/device-vendor-example.te`).
+Strand's public SELinux types go into the platform compat check through
+`sepolicy/private/compat/202504/202504.ignore.cil`, which adds to the
+`new_objects` attribute; the device needs a system_ext compat ignore file
+that declares it (`(type new_objects) (typeattribute new_objects)`).
 
 ## strandd
 
