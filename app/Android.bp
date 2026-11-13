@@ -24,6 +24,8 @@ android_app {
 prebuilt_etc {
     name: "privapp_whitelist_org.strand.engine",
     src: "privapp_whitelist_org.strand.engine.xml",
+    // Without the extension the package manager skips the file
+    filename_from_src: true,
     sub_dir: "permissions",
     system_ext_specific: true,
 }
