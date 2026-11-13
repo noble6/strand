@@ -106,7 +106,7 @@ void Engine::recoverJournal() {
     }
     logi("restoring %zu values left by the last run", undo.size());
     revertActions(&undo);
-    writeFile(kJournal, "");
+    writeOwnFile(kJournal, "");
 }
 
 void Engine::loadState() {
@@ -150,7 +150,7 @@ void Engine::saveJournal() {
     for (auto& ap : pressureUndo_) s += encode(ap) + "\n";
     for (auto& ap : hotUndo_) s += encode(ap) + "\n";
     for (auto& ap : baseUndo_) s += encode(ap) + "\n";
-    writeFile(kJournal, s);
+    writeOwnFile(kJournal, s);
 }
 
 std::string Engine::effectiveLocked() {
@@ -212,6 +212,11 @@ void Engine::clearAppProfiles() {
     applyCv_.notify_all();
 }
 
+bool Engine::interesting(const std::string& pkg) {
+    std::lock_guard<std::mutex> lock(m_);
+    return appProfiles_.count(pkg) || games_.count(pkg);
+}
+
 bool Engine::wantsTopApp() {
     std::lock_guard<std::mutex> lock(m_);
     return !appProfiles_.empty() || !games_.empty();
@@ -251,6 +256,36 @@ void Engine::tick() {
         std::string v;
         if (readLine(cfg_.gpuBusyPath, &v)) gpu = atoi(trim(v).c_str());
     }
+    // Battery saver can't turn on while charging: when the device goes on
+    // battery with a profile that wants it, ask again.
+    {
+        int64_t now = nowMs();
+        if (now - lastPowerCheckMs_ >= 10000) {
+            lastPowerCheckMs_ = now;
+            std::string st;
+            bool onBattery = readLine("/sys/class/power_supply/battery/status", &st) &&
+                             trim(st) == "Discharging";
+            bool wantSaver = false;
+            {
+                std::lock_guard<std::mutex> lock(m_);
+                for (auto& ap : profileUndo_)
+                    if (ap.action.kind == Action::PowerSave && ap.action.args[0] == "on")
+                        wantSaver = true;
+                if (!wantSaver) {
+                    const Profile* p = cfg_.find(appliedProfile_);
+                    if (p)
+                        for (auto& a : p->actions)
+                            if (a.kind == Action::PowerSave && a.args[0] == "on") wantSaver = true;
+                }
+            }
+            if (onBattery && !onBattery_ && wantSaver) {
+                logi("on battery: battery saver again");
+                cmd({"power", "set-mode", "1"});
+            }
+            onBattery_ = onBattery;
+        }
+    }
+
     // Free space on /data, every 10 minutes
     bool clearCaches = false;
     {
@@ -602,6 +637,24 @@ std::string Engine::stats() {
         if (w.size() >= 3)
             o << "zram_orig " << w[0] << "\nzram_compr " << w[1] << "\nzram_used " << w[2]
               << "\n";
+    }
+    // CPU load since the previous stats call, from /proc/stat
+    if (readLine("/proc/stat", &text)) {
+        auto w = split(text);
+        if (w.size() >= 8 && w[0] == "cpu") {
+            uint64_t v[7] = {0};
+            for (int i = 0; i < 7; i++) v[i] = strtoull(w[i + 1].c_str(), nullptr, 10);
+            uint64_t idle = v[3] + v[4], total = 0;
+            for (auto x : v) total += x;
+            uint64_t busy = total - idle;
+            std::lock_guard<std::mutex> lock(m_);
+            if (cpuPrevTotal_ && total > cpuPrevTotal_) {
+                o << "cpu_load_pct " << (100 * (busy - cpuPrevBusy_) / (total - cpuPrevTotal_))
+                  << "\n";
+            }
+            cpuPrevBusy_ = busy;
+            cpuPrevTotal_ = total;
+        }
     }
     if (DIR* d = opendir(realPath("/sys/devices/system/cpu/cpufreq").c_str())) {
         std::vector<std::string> pols;

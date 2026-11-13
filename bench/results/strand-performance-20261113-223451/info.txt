@@ -1,0 +1,29 @@
+== build
+24.0-20261113-UNOFFICIAL-ruan
+5.10.269
+== vm
+swappiness=180
+watermark_scale_factor=60
+min_free_kbytes=11584
+extra_free_kbytes=48000
+page-cluster=0
+vfs_cache_pressure=100
+compaction_proactiveness=0
+== zram
+4294967296
+lzo lzo-rle [lz4] zstd 
+== lmkd
+[ro.config.low_ram]: [false]
+== cpufreq
+/sys/devices/system/cpu/cpufreq/policy0 walt 1497600-1958400 cur=1958400
+/sys/devices/system/cpu/cpufreq/policy4 walt 1497600-2400000 cur=1497600
+== uclamp
+top-app min=0.00 max=max
+foreground min=0.00 max=max
+background min=0.00 max=max
+== meminfo
+MemTotal:        7704300 kB
+MemFree:         2672904 kB
+MemAvailable:    4521356 kB
+Buffers:            2152 kB
+Cached:          2011544 kB

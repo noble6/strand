@@ -56,10 +56,10 @@ public class MainActivity extends Activity {
         void setSelected(boolean on, boolean animate) {
             view.setBackground(Ui.ripple(MainActivity.this, Ui.rounded(MainActivity.this,
                     on ? R.color.primary_container : R.color.surface, 28)));
-            icon.setColors(getColor(on ? R.color.accent : R.color.secondary_container),
-                    getColor(on ? R.color.on_accent : R.color.on_secondary_container));
-            title.setTextColor(getColor(on ? R.color.on_primary_container : R.color.text));
-            desc.setTextColor(getColor(on ? R.color.on_primary_container : R.color.text_dim));
+            icon.setColors(Theme.color(MainActivity.this, on ? R.color.accent : R.color.secondary_container),
+                    Theme.color(MainActivity.this, on ? R.color.on_accent : R.color.on_secondary_container));
+            title.setTextColor(Theme.color(MainActivity.this, on ? R.color.on_primary_container : R.color.text));
+            desc.setTextColor(Theme.color(MainActivity.this, on ? R.color.on_primary_container : R.color.text_dim));
             desc.setAlpha(on ? 0.8f : 1f);
             if (on && animate) icon.pop();
         }
@@ -97,7 +97,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         mColumn = Ui.page(this, getString(R.string.app_name), getString(R.string.tagline));
-        mSubtitle = (TextView) mColumn.getChildAt(1);
+        mSubtitle = (TextView) mColumn.getTag();
         MaintenanceJobService.ensureScheduled(this);
     }
 
@@ -120,7 +120,7 @@ public class MainActivity extends Activity {
     }
 
     private void build(List<Profiles.Profile> list, StrandClient.Reply status) {
-        while (mColumn.getChildCount() > 2) mColumn.removeViewAt(2);
+        while (mColumn.getChildCount() > 1) mColumn.removeViewAt(1);
         mTiles.clear();
         if (list.isEmpty() || status == null) {
             mSubtitle.setText(R.string.daemon_down);
@@ -129,7 +129,23 @@ public class MainActivity extends Activity {
         mProfiles = list;
         Map<String, String> st = status.map();
 
-        mColumn.addView(hero());
+        android.widget.FrameLayout heroFrame = new android.widget.FrameLayout(this);
+        LinearLayout hero = hero();
+        heroFrame.setLayoutParams(hero.getLayoutParams());
+        hero.setLayoutParams(new android.widget.FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        heroFrame.addView(hero);
+        Decor decor = Decor.hero(this);
+        heroFrame.addView(decor, new android.widget.FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        heroFrame.setClipToOutline(true);
+        heroFrame.setOutlineProvider(new android.view.ViewOutlineProvider() {
+            @Override
+            public void getOutline(View v, android.graphics.Outline o) {
+                o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), Ui.dp(MainActivity.this, 32));
+            }
+        });
+        mColumn.addView(heroFrame);
 
         if ("1".equals(st.get("low_storage"))) {
             Ui.Group warn = new Ui.Group(this);
@@ -138,7 +154,7 @@ public class MainActivity extends Activity {
                     v -> startActivity(new Intent(this, HealthActivity.class)));
             warn.addView(row);
             ((GradientDrawable) ((android.graphics.drawable.RippleDrawable) row.getBackground())
-                    .getDrawable(0)).setColor(getColor(R.color.tertiary_container));
+                    .getDrawable(0)).setColor(Theme.color(this, R.color.tertiary_container));
             ((LinearLayout.LayoutParams) warn.getLayoutParams()).topMargin = Ui.dp(this, 8);
             mColumn.addView(warn);
         }
@@ -177,6 +193,9 @@ public class MainActivity extends Activity {
         ((LinearLayout.LayoutParams) game.getLayoutParams()).topMargin = Ui.dp(this, 2);
         mColumn.addView(game);
 
+        mColumn.addView(Ui.section(this, getString(R.string.section_look)));
+        mColumn.addView(lookGroup());
+
         mColumn.addView(Ui.section(this, getString(R.string.section_more)));
         Ui.Group more = new Ui.Group(this);
         more.addView(link(R.drawable.ic_sound, R.string.sound_title, R.string.sound_summary,
@@ -194,6 +213,57 @@ public class MainActivity extends Activity {
         applyStatus(status, false);
         mHandler.removeCallbacks(mPoll);
         mHandler.post(mPoll);
+    }
+
+    /** Theme picker: wallpaper or a seed color, and pure black for dark mode. */
+    private Ui.Group lookGroup() {
+        Ui.Group g = new Ui.Group(this);
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(Ui.dp(this, 16), Ui.dp(this, 16), Ui.dp(this, 16), Ui.dp(this, 18));
+        box.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        box.addView(Ui.text(this, getString(R.string.theme_title), 17, R.color.text, 500));
+        TextView sum = Ui.text(this, getString(R.string.theme_summary), 14, R.color.text_dim);
+        sum.setPadding(0, Ui.dp(this, 2), 0, Ui.dp(this, 14));
+        box.addView(sum);
+        android.widget.HorizontalScrollView hs = new android.widget.HorizontalScrollView(this);
+        hs.setHorizontalScrollBarEnabled(false);
+        LinearLayout sw = new LinearLayout(this);
+        String cur = Theme.current(this);
+        for (int i = 0; i < Theme.NAMES.length; i++) {
+            final String name = Theme.NAMES[i];
+            boolean on = name.equals(cur);
+            View dot = new View(this);
+            GradientDrawable d = new GradientDrawable();
+            d.setShape(GradientDrawable.OVAL);
+            d.setColor(Theme.swatch(this, i));
+            if (on) d.setStroke(Ui.dp(this, 3), Theme.color(this, R.color.text));
+            dot.setBackground(d);
+            dot.setContentDescription(name);
+            int s = Ui.dp(this, on ? 48 : 42);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(s, s);
+            lp.setMarginEnd(Ui.dp(this, 12));
+            lp.gravity = android.view.Gravity.CENTER_VERTICAL;
+            sw.addView(dot, lp);
+            dot.setOnClickListener(v -> {
+                v.performHapticFeedback(HapticFeedbackConstants.CONFIRM);
+                Theme.set(this, name, Theme.pureBlack(this));
+                recreate();
+            });
+        }
+        hs.addView(sw);
+        box.addView(hs);
+        g.addView(box);
+        Switch black = new Switch(this);
+        black.setChecked(Theme.pureBlack(this));
+        black.setOnCheckedChangeListener((b, on) -> {
+            Theme.set(this, Theme.current(this), on);
+            recreate();
+        });
+        g.addView(Ui.row(this, R.drawable.ic_sparkle, getString(R.string.theme_black),
+                getString(R.string.theme_black_summary), black, null));
+        return g;
     }
 
     private View link(int icon, int title, int summary, Class<?> cls) {
@@ -226,11 +296,11 @@ public class MainActivity extends Activity {
 
         LinearLayout rings = new LinearLayout(this);
         rings.setOrientation(LinearLayout.HORIZONTAL);
-        int arc = getColor(R.color.accent);
-        int track = (getColor(R.color.on_primary_container) & 0x00ffffff) | 0x26000000;
-        int txt = getColor(R.color.on_primary_container);
+        int arc = Theme.color(this, R.color.accent);
+        int track = (Theme.color(this, R.color.on_primary_container) & 0x00ffffff) | 0x26000000;
+        int txt = Theme.color(this, R.color.on_primary_container);
         mCpu = new RingGauge(this, "CPU", arc, track, txt);
-        mGpu = new RingGauge(this, "GPU", getColor(R.color.tertiary), track, txt);
+        mGpu = new RingGauge(this, "GPU", Theme.color(this, R.color.tertiary), track, txt);
         mMem = new RingGauge(this, "RAM", arc, track, txt);
         for (RingGauge g : new RingGauge[] {mCpu, mGpu, mMem}) {
             rings.addView(g, new LinearLayout.LayoutParams(0,
@@ -299,6 +369,8 @@ public class MainActivity extends Activity {
                         if (max > 0) cpu = Math.max(cpu, cur / (float) max);
                     }
                 }
+                String load = m.get("cpu_load_pct");
+                if (load != null) cpu = parse(load) / 100f;
                 mCpu.set(cpu, Math.round(cpu * 100) + "%");
                 String busy = m.get("gpu_busy_pct");
                 if (busy != null) {

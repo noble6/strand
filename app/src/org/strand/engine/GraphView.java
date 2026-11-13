@@ -29,9 +29,9 @@ public class GraphView extends View {
         super(c);
         mFixedMax = fixedMax;
         int[] palette = {
-            c.getColor(R.color.accent),
-            c.getColor(R.color.warn),
-            c.getColor(R.color.text_dim),
+            Theme.color(c, R.color.accent),
+            Theme.color(c, R.color.warn),
+            Theme.color(c, R.color.text_dim),
         };
         for (int i = 0; i < series; i++) {
             mSeries.add(new float[SAMPLES]);
@@ -41,9 +41,9 @@ public class GraphView extends View {
         mLine.setStrokeWidth(Ui.dp(c, 2));
         mLine.setStrokeJoin(Paint.Join.ROUND);
         mFill.setStyle(Paint.Style.FILL);
-        mGrid.setColor(c.getColor(R.color.graph_grid));
+        mGrid.setColor(Theme.color(c, R.color.graph_grid));
         mGrid.setStrokeWidth(1);
-        mLabel.setColor(c.getColor(R.color.text_dim));
+        mLabel.setColor(Theme.color(c, R.color.text_dim));
         mLabel.setTextSize(Ui.dp(c, 11));
     }
 

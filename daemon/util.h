@@ -19,6 +19,8 @@ bool readFile(const std::string& path, std::string* out);
 // First line of a file, without the newline.
 bool readLine(const std::string& path, std::string* out);
 bool writeFile(const std::string& path, const std::string& value);
+// Our own files (journal, state): created if missing, unlike sysfs writes.
+bool writeOwnFile(const std::string& path, const std::string& value);
 
 std::string trim(const std::string& s);
 std::vector<std::string> split(const std::string& s);  // on whitespace

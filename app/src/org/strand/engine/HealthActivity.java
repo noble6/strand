@@ -55,12 +55,12 @@ public class HealthActivity extends Activity {
         hero.setLayoutParams(hlp);
         LinearLayout rings = new LinearLayout(this);
         rings.setOrientation(LinearLayout.HORIZONTAL);
-        int track = (getColor(R.color.on_primary_container) & 0x00ffffff) | 0x26000000;
-        int txt = getColor(R.color.on_primary_container);
+        int track = (Theme.color(this, R.color.on_primary_container) & 0x00ffffff) | 0x26000000;
+        int txt = Theme.color(this, R.color.on_primary_container);
         mStorageRing = new RingGauge(this, getString(R.string.health_storage),
-                getColor(R.color.accent), track, txt);
+                Theme.color(this, R.color.accent), track, txt);
         mBatteryRing = new RingGauge(this, getString(R.string.health_battery),
-                getColor(R.color.tertiary), track, txt);
+                Theme.color(this, R.color.tertiary), track, txt);
         rings.addView(mStorageRing, new LinearLayout.LayoutParams(0,
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1));
         rings.addView(mBatteryRing, new LinearLayout.LayoutParams(0,

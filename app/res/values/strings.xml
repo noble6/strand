@@ -7,6 +7,11 @@
 
     <string name="section_profile">Profile</string>
     <string name="section_more">More</string>
+    <string name="section_look">Look</string>
+    <string name="theme_title">Theme</string>
+    <string name="theme_summary">Wallpaper colors, or pick a color for Strand and Resona</string>
+    <string name="theme_black">Pure black</string>
+    <string name="theme_black_summary">Black backgrounds in dark mode</string>
     <string name="desc_balanced">Stock behaviour. Strand only watches memory pressure.</string>
     <string name="desc_performance">Higher CPU and GPU floors, display held at full refresh rate.</string>
     <string name="desc_battery">Capped big cores and GPU, 60 Hz, battery saver and lighter blur.</string>

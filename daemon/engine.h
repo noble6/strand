@@ -29,6 +29,7 @@ class Engine {
     void setThermal(int status);  // PowerManager thermal status, from the app
     void tick();  // once a second: pressure calm-down
     bool wantsTopApp();
+    bool interesting(const std::string& pkg);  // has an app profile, or is a game
 
     // Maintenance, run one at a time on their own thread
     bool queueTrim();
@@ -79,6 +80,9 @@ class Engine {
     std::string topApp_;
     bool pressureWanted_ = false;
     bool kickPending_ = false;
+    bool onBattery_ = false;
+    int64_t lastPowerCheckMs_ = 0;
+    uint64_t cpuPrevBusy_ = 0, cpuPrevTotal_ = 0;
     std::set<std::string> games_;
     bool autoGame_ = true;
     int64_t gpuBusySinceMs_ = 0;

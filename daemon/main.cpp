@@ -84,25 +84,25 @@ int openPsi(const Config& cfg) {
     return fd;
 }
 
-// The foreground app: first process in the top-app cpuset that belongs to an
-// app (uid >= 10000) and isn't a :service process.
-std::string topApp() {
+// The foreground app: a process in the top-app cpuset whose name is an app
+// package (has a dot, no path, not a :service process). System-user apps
+// such as Settings count too; system_server has no dot. When several are
+// there (split screen, launcher plus app), one with a profile or a game wins.
+std::string topApp(Engine& engine) {
     std::string procs;
     if (!readFile("/dev/cpuset/top-app/cgroup.procs", &procs)) return "";
+    std::string first;
     for (auto& pid : split(procs)) {
-        std::string dir = "/proc/" + pid;
-        struct stat st;
-        if (stat(realPath(dir).c_str(), &st)) continue;
-#ifdef __ANDROID__
-        if (st.st_uid % 100000 < 10000) continue;
-#endif
         std::string cmdline;
-        if (!readFile(dir + "/cmdline", &cmdline)) continue;
+        if (!readFile("/proc/" + pid + "/cmdline", &cmdline)) continue;
         cmdline = cmdline.c_str();  // up to the first NUL
-        if (cmdline.empty() || cmdline.find(':') != std::string::npos) continue;
-        return cmdline;
+        if (cmdline.empty() || cmdline[0] == '/' || cmdline.find('.') == std::string::npos ||
+            cmdline.find(':') != std::string::npos || cmdline == "com.android.systemui")
+            continue;
+        if (engine.interesting(cmdline)) return cmdline;
+        if (first.empty()) first = cmdline;
     }
-    return "";
+    return first;
 }
 
 bool validName(const std::string& s) {
@@ -300,7 +300,7 @@ int main() {
         if (now - lastTick >= 1000) {
             lastTick = now;
             engine.tick();
-            if (engine.wantsTopApp()) engine.onTopApp(topApp());
+            if (engine.wantsTopApp()) engine.onTopApp(topApp(engine));
         }
     }
 }

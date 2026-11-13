@@ -24,6 +24,7 @@ import android.widget.Switch;
 import android.widget.TextView;
 
 import org.strand.engine.R;
+import org.strand.engine.Theme;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -126,14 +127,14 @@ public class ResonaActivity extends Activity implements ResonaController.Listene
         TextView t = new TextView(this);
         t.setText(s);
         t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
-        t.setTextColor(getColor(color));
+        t.setTextColor(Theme.color(this, color));
         return t;
     }
 
     private LinearLayout card() {
         LinearLayout c = new LinearLayout(this);
         c.setOrientation(LinearLayout.VERTICAL);
-        c.setBackgroundResource(R.drawable.card);
+        c.setBackground(shape(R.color.surface, 28, 0));
         c.setPadding(dp(18), dp(16), dp(18), dp(16));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -149,9 +150,21 @@ public class ResonaActivity extends Activity implements ResonaController.Listene
         return t;
     }
 
+    /** Themed rounded shape with a ripple; outlineRes 0 = no stroke. */
+    private android.graphics.drawable.Drawable shape(int colorRes, float radiusDp, int outlineRes) {
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(Theme.color(this, colorRes));
+        g.setCornerRadius(dp(radiusDp));
+        if (outlineRes != 0) g.setStroke(dp(1), Theme.color(this, outlineRes));
+        return new android.graphics.drawable.RippleDrawable(
+                android.content.res.ColorStateList.valueOf(
+                        (Theme.color(this, R.color.text) & 0x00ffffff) | 0x22000000), g, null);
+    }
+
     private TextView chip(String label, boolean on, View.OnClickListener l) {
         TextView c = text(label, 14, R.color.text);
-        c.setBackgroundResource(on ? R.drawable.chip_on : R.drawable.chip);
+        c.setBackground(on ? shape(R.color.secondary_container, 10, 0)
+                : shape(R.color.surface, 10, R.color.outline));
         c.setPadding(dp(16), dp(9), dp(16), dp(9));
         c.setOnClickListener(l);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
@@ -179,8 +192,8 @@ public class ResonaActivity extends Activity implements ResonaController.Listene
         scroll.setFitsSystemWindows(true);
         // A soft wash of the wallpaper accent behind the header
         GradientDrawable wash = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[] {(getColor(R.color.accent) & 0x00ffffff) | 0x33000000, getColor(R.color.bg),
-                        getColor(R.color.bg)});
+                new int[] {(Theme.color(this, R.color.accent) & 0x00ffffff) | 0x33000000, Theme.color(this, R.color.bg),
+                        Theme.color(this, R.color.bg)});
         scroll.setBackground(wash);
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
@@ -201,8 +214,8 @@ public class ResonaActivity extends Activity implements ResonaController.Listene
             return;
         }
 
-        mPower = new MorphButton(this, getColor(R.color.accent), getColor(R.color.surface_high),
-                getColor(R.color.on_accent), getColor(R.color.text_dim));
+        mPower = new MorphButton(this, Theme.color(this, R.color.accent), Theme.color(this, R.color.surface_high),
+                Theme.color(this, R.color.on_accent), Theme.color(this, R.color.text_dim));
         mPower.setOnClickListener(v -> {
             v.performHapticFeedback(HapticFeedbackConstants.CONFIRM);
             mCtl.setEnabled(!mCtl.isEnabled());
@@ -214,7 +227,7 @@ public class ResonaActivity extends Activity implements ResonaController.Listene
         col.addView(mPower, plp);
 
         TextView compare = text("Hold to compare", 14, R.color.text_dim);
-        compare.setBackgroundResource(R.drawable.chip);
+        compare.setBackground(shape(R.color.surface, 10, R.color.outline));
         compare.setPadding(dp(18), dp(8), dp(18), dp(8));
         compare.setOnTouchListener((v, e) -> {
             if (e.getActionMasked() == MotionEvent.ACTION_DOWN) {
@@ -238,7 +251,7 @@ public class ResonaActivity extends Activity implements ResonaController.Listene
         spec.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT));
         ((LinearLayout.LayoutParams) spec.getLayoutParams()).topMargin = dp(16);
-        mSpectrum = new SpectrumView(this, getColor(R.color.accent), getColor(R.color.text_dim));
+        mSpectrum = new SpectrumView(this, Theme.color(this, R.color.accent), Theme.color(this, R.color.text_dim));
         spec.addView(mSpectrum);
         mMeters = text("", 12, R.color.text_dim);
         mMeters.setPadding(0, dp(8), 0, 0);
@@ -255,8 +268,8 @@ public class ResonaActivity extends Activity implements ResonaController.Listene
 
         col.addView(section("Equalizer"));
         LinearLayout eqCard = card();
-        mEq = new EqCurveView(this, getColor(R.color.accent), getColor(R.color.graph_grid),
-                getColor(R.color.text_dim));
+        mEq = new EqCurveView(this, Theme.color(this, R.color.accent), Theme.color(this, R.color.graph_grid),
+                Theme.color(this, R.color.text_dim));
         mEq.setListener((gains, done) -> {
             if (done) mCtl.setEq(gains);
             else for (int b = 0; b < 10; b++) mCtl.set("eq" + b, gains[b]);
@@ -408,8 +421,9 @@ public class ResonaActivity extends Activity implements ResonaController.Listene
         }
         if (mCtl.hasFactoryTuning() && mCtl.device() == ResonaPresets.Device.SPEAKER) {
             mHardware.addView(toggle("Factory speaker tuning",
-                    "The maker's calibration for these speakers ("
-                            + (mCtl.isLandscape() ? "landscape" : "portrait") + "), from the stock Dolby tuning",
+                    mCtl.isLandscape()
+                            ? "The maker's calibration for these speakers, from the stock Dolby tuning"
+                            : "Applies in landscape: the maker tuned only that orientation",
                     mCtl.isFactoryTuning(), (b, v) -> mCtl.setFactoryTuning(v)));
         }
         if (out != null && ResonaHardware.bestMixer(am, out, false) != null) {
@@ -464,6 +478,12 @@ public class ResonaActivity extends Activity implements ResonaController.Listene
             bar.setMax(1000);
             bar.setProgressDrawable(getDrawable(R.drawable.seek_track));
             bar.setThumb(getDrawable(R.drawable.seek_thumb));
+            bar.setProgressTintList(android.content.res.ColorStateList.valueOf(
+                    Theme.color(this, R.color.accent)));
+            bar.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(
+                    Theme.color(this, R.color.surface_high)));
+            bar.setThumbTintList(android.content.res.ColorStateList.valueOf(
+                    Theme.color(this, R.color.accent)));
             bar.setSplitTrack(false);
             bar.setProgress(Math.round((mCtl.get(key) - min) / (max - min) * 1000));
             bar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {

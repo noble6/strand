@@ -51,8 +51,8 @@ public class AppProfilesActivity extends Activity {
         search.setBackground(Ui.rounded(this, R.color.surface_high, 28));
         int p = Ui.dp(this, 20);
         search.setPadding(p, Ui.dp(this, 16), p, Ui.dp(this, 16));
-        search.setTextColor(getColor(R.color.text));
-        search.setHintTextColor(getColor(R.color.text_dim));
+        search.setTextColor(Theme.color(this, R.color.text));
+        search.setHintTextColor(Theme.color(this, R.color.text_dim));
         LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         slp.topMargin = Ui.dp(this, 8);
@@ -138,7 +138,7 @@ public class AppProfilesActivity extends Activity {
         String prof = mAssigned.get(a.pkg);
         a.profile.setText(prof == null ? getString(R.string.apps_default)
                 : Profiles.label(mProfiles, prof));
-        a.profile.setTextColor(getColor(prof == null ? R.color.text_dim : R.color.accent));
+        a.profile.setTextColor(Theme.color(this, prof == null ? R.color.text_dim : R.color.accent));
     }
 
     private void choose(App a) {

@@ -24,7 +24,7 @@ printf 'some avg10=0.50 avg60=0.10 avg300=0.00 total=1234\nfull avg10=0.00 avg60
 cp "$R/proc/pressure/memory" "$R/proc/pressure/cpu"; cp "$R/proc/pressure/memory" "$R/proc/pressure/io"
 echo boot-1 >"$R/proc/sys/kernel/random/boot_id"
 echo 1 >"$R/props/sys.boot_completed"
-touch "$R/props/sys.strand.blur.lite" "$R/data/misc/strand/journal" "$R/dev/cpuset/top-app/cgroup.procs"
+touch "$R/props/sys.strand.blur.lite" "$R/dev/cpuset/top-app/cgroup.procs"
 mkdir -p "$R/data"
 
 # Fake `cmd`: settings in files, everything else logged
@@ -85,6 +85,7 @@ ctl profile battery >/dev/null; settle
 [ "$(s system.peak_refresh_rate)" = 60.0 ] || fail "peak refresh"
 [ "$(cat $R/props/sys.strand.blur.lite)" = 1 ] || fail "blur lite"
 [ "$(s dc.device_idle.inactive_to)" = 600000 ] || fail "doze timing"
+[ -s "$R/data/misc/strand/journal" ] || fail "journal not created"
 grep -q '60.0' "$R/data/misc/strand/journal" || fail "journal"
 
 # Crash while in battery: the new daemon undoes the old run, reapplies
@@ -104,7 +105,9 @@ ctl profile balanced >/dev/null
 ctl app com.game gaming >/dev/null
 ctl app 'bad;name' gaming >/dev/null && fail "bad package accepted"
 sleep 100 & GAME=$!
-echo $GAME >"$R/dev/cpuset/top-app/cgroup.procs"
+sleep 100 & SYS=$!
+mkdir -p "$R/proc/$SYS"; printf 'system_server\0' >"$R/proc/$SYS/cmdline"
+printf '%s\n%s\n' $SYS $GAME >"$R/dev/cpuset/top-app/cgroup.procs"
 mkdir -p "$R/proc/$GAME"; printf 'com.game\0' >"$R/proc/$GAME/cmdline"
 sleep 1.6
 ctl status | grep -q '^effective gaming$' || { ctl status; fail "per-app gaming"; }
@@ -113,7 +116,7 @@ ctl status | grep -q '^effective gaming$' || { ctl status; fail "per-app gaming"
 sleep 1.6
 ctl status | grep -q '^effective balanced$' || fail "per-app revert"
 [ "$(s global.zen_mode)" = 0 ] || fail "dnd revert"
-kill $GAME
+kill $GAME $SYS
 
 # State survives a restart
 kill $PID; wait $PID 2>/dev/null || true; rm -f "$T/sock"; start; settle

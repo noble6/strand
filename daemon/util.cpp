@@ -82,6 +82,17 @@ bool writeFile(const std::string& path, const std::string& value) {
     return true;
 }
 
+bool writeOwnFile(const std::string& path, const std::string& value) {
+    int fd = open(realPath(path).c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+    if (fd < 0) {
+        logw("create %s: %s", path.c_str(), strerror(errno));
+        return false;
+    }
+    bool ok = write(fd, value.data(), value.size()) == (ssize_t)value.size();
+    close(fd);
+    return ok;
+}
+
 std::string trim(const std::string& s) {
     size_t b = s.find_first_not_of(" \t\r\n");
     if (b == std::string::npos) return "";

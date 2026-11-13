@@ -33,7 +33,7 @@ final class Ui {
     }
 
     static int color(Context c, int res) {
-        return c.getColor(res);
+        return Theme.color(c, res);
     }
 
     static Typeface font(int weight) {
@@ -44,7 +44,7 @@ final class Ui {
         TextView t = new TextView(c);
         t.setText(s);
         t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
-        t.setTextColor(c.getColor(colorRes));
+        t.setTextColor(Theme.color(c, colorRes));
         return t;
     }
 
@@ -56,14 +56,14 @@ final class Ui {
 
     static GradientDrawable rounded(Context c, int colorRes, float radiusDp) {
         GradientDrawable g = new GradientDrawable();
-        g.setColor(c.getColor(colorRes));
+        g.setColor(Theme.color(c, colorRes));
         g.setCornerRadius(dp(c, radiusDp));
         return g;
     }
 
     static Drawable ripple(Context c, Drawable content) {
         return new RippleDrawable(ColorStateList.valueOf(
-                (c.getColor(R.color.text) & 0x00ffffff) | 0x22000000), content, null);
+                (Theme.color(c, R.color.text) & 0x00ffffff) | 0x22000000), content, null);
     }
 
     /**
@@ -72,7 +72,7 @@ final class Ui {
      */
     static LinearLayout page(Activity a, String title, String subtitle) {
         FrameLayout root = new FrameLayout(a);
-        root.setBackgroundColor(a.getColor(R.color.bg));
+        root.setBackgroundColor(Theme.color(a, R.color.bg));
         root.setFitsSystemWindows(true);
 
         ScrollView scroll = new ScrollView(a);
@@ -81,24 +81,34 @@ final class Ui {
         LinearLayout col = new LinearLayout(a);
         col.setOrientation(LinearLayout.VERTICAL);
         int side = dp(a, 16);
-        col.setPadding(side, dp(a, 64), side, dp(a, 40));
+        col.setPadding(side, dp(a, 40), side, dp(a, 40));
         scroll.addView(col);
         root.addView(scroll);
 
+        // Header: expressive shapes turning behind the title (top right)
+        FrameLayout header = new FrameLayout(a);
+        header.addView(Decor.header(a), new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(a, 132)));
+        LinearLayout titles = new LinearLayout(a);
+        titles.setOrientation(LinearLayout.VERTICAL);
         TextView big = text(a, title, 40, R.color.text, 400);
-        big.setPadding(dp(a, 8), dp(a, 8), 0, 0);
-        col.addView(big);
+        big.setPadding(dp(a, 8), dp(a, 24), 0, 0);
+        titles.addView(big);
+        TextView sub = null;
         if (subtitle != null) {
-            TextView s = text(a, subtitle, 16, R.color.text_dim);
-            s.setPadding(dp(a, 8), dp(a, 6), 0, dp(a, 8));
-            col.addView(s);
+            sub = text(a, subtitle, 16, R.color.text_dim);
+            sub.setPadding(dp(a, 8), dp(a, 6), 0, dp(a, 8));
+            titles.addView(sub);
         }
+        header.addView(titles);
+        col.addView(header);
+        col.setTag(sub); // the subtitle, for screens that update it
 
         // Top bar: fades in with the small title once the big one scrolls away
         TextView bar = text(a, title, 20, R.color.text, 500);
         bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.setPadding(dp(a, 24), 0, dp(a, 24), 0);
-        bar.setBackgroundColor(a.getColor(R.color.surface));
+        bar.setBackgroundColor(Theme.color(a, R.color.surface));
         bar.setAlpha(0f);
         bar.setElevation(dp(a, 2));
         root.addView(bar, new FrameLayout.LayoutParams(
@@ -144,10 +154,10 @@ final class Ui {
     static ImageView badge(Context c, int icon, int bgRes, int fgRes, float sizeDp) {
         ImageView v = new ImageView(c);
         v.setImageResource(icon);
-        v.setImageTintList(ColorStateList.valueOf(c.getColor(fgRes)));
+        v.setImageTintList(ColorStateList.valueOf(Theme.color(c, fgRes)));
         GradientDrawable g = new GradientDrawable();
         g.setShape(GradientDrawable.OVAL);
-        g.setColor(c.getColor(bgRes));
+        g.setColor(Theme.color(c, bgRes));
         v.setBackground(g);
         int pad = dp(c, sizeDp * 0.25f);
         v.setPadding(pad, pad, pad, pad);
@@ -187,7 +197,7 @@ final class Ui {
                 if (v.getVisibility() == GONE) continue;
                 float top = k == 0 ? big : small, bottom = k == shown - 1 ? big : small;
                 GradientDrawable g = new GradientDrawable();
-                g.setColor(c.getColor(R.color.surface));
+                g.setColor(Theme.color(c, R.color.surface));
                 g.setCornerRadii(new float[] {top, top, top, top, bottom, bottom, bottom, bottom});
                 v.setBackground(v.isClickable() ? ripple(c, g) : g);
                 LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) v.getLayoutParams();
@@ -229,7 +239,7 @@ final class Ui {
         if (trailing == null && click != null) {
             ImageView chev = new ImageView(c);
             chev.setImageResource(R.drawable.ic_chevron);
-            chev.setImageTintList(ColorStateList.valueOf(c.getColor(R.color.text_dim)));
+            chev.setImageTintList(ColorStateList.valueOf(Theme.color(c, R.color.text_dim)));
             trailing = chev;
         }
         if (trailing != null) {
