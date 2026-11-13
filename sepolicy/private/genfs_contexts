@@ -1,0 +1,1 @@
+genfscon proc /sys/vm/compact_memory u:object_r:proc_strand_vm:s0

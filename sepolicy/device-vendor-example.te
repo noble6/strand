@@ -1,5 +1,8 @@
 # Example for a device's vendor sepolicy (types differ per SoC vendor):
-# GPU limits and battery stats for strandd.
+# GPU stats and battery stats for strandd. Core domains may not read
+# unlabelled sysfs, so label the stat nodes by their real path in
+# genfs_contexts first, e.g.
+#   genfscon sysfs /devices/platform/soc/3d00000.qcom,kgsl-3d0/kgsl/kgsl-3d0/gpu_busy_percentage u:object_r:vendor_sysfs_kgsl:s0
 allow strandd vendor_sysfs_kgsl:dir r_dir_perms;
 allow strandd vendor_sysfs_kgsl:file rw_file_perms;
 allow strandd vendor_sysfs_kgsl:lnk_file read;

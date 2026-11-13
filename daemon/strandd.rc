@@ -2,5 +2,5 @@ service strandd /apex/org.strand.engine/bin/strandd
     class main
     user root
     group root system readproc
-    capabilities DAC_OVERRIDE SYS_ADMIN SYS_RESOURCE
+    capabilities SYS_ADMIN SYS_RESOURCE
     socket strandd stream 0666 system system

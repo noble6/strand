@@ -4,14 +4,17 @@ init_daemon_domain(strandd)
 type strandd_socket, file_type, coredomain_socket, mlstrustedobject;
 type strandd_data_file, file_type, data_file_type, core_data_file_type;
 
-# Runs as root with only these: write system-owned sysfs nodes, FITRIM,
-# PSI triggers.
-allow strandd self:global_capability_class_set { dac_override sys_admin sys_resource };
+# Runs as root with only these: FITRIM, PSI triggers. System-owned sysfs
+# nodes are writable through group system (no dac_override: Android forbids it).
+allow strandd self:global_capability_class_set { sys_admin sys_resource };
+
+# Core domains may not touch unlabelled /proc files: compact_memory gets a type
+type proc_strand_vm, fs_type, proc_type;
+allow strandd proc_strand_vm:file rw_file_perms;
 
 # Profiles: cpufreq, vm knobs
 allow strandd sysfs_devices_system_cpu:dir r_dir_perms;
 allow strandd sysfs_devices_system_cpu:file rw_file_perms;
-allow strandd proc:file rw_file_perms;
 allow strandd proc_watermark_scale_factor:file rw_file_perms;
 allow strandd proc_watermark_boost_factor:file rw_file_perms;
 allow strandd proc_page_cluster:file rw_file_perms;
@@ -66,7 +69,3 @@ get_prop(strandd, boot_status_prop)
 # Clients: the Strand app (system uid) and strandctl over adb
 unix_socket_connect(system_app, strandd, strandd)
 userdebug_or_eng(`unix_socket_connect(shell, strandd, strandd)')
-
-# Stats from generic sysfs nodes (GPU load and clock on kgsl)
-allow strandd sysfs:dir r_dir_perms;
-allow strandd sysfs:file r_file_perms;
