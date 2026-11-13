@@ -33,8 +33,8 @@ constexpr int kMaxClients = 8;
 std::vector<std::string> configFiles() {
     if (const char* env = getenv("STRAND_CONFIG")) return split(env);
     // The generic config ships in the Strand APEX (updatable); the device's on system_ext
-    std::string generic = access("/apex/org.strand.engine/etc/strand.conf", R_OK) == 0
-            ? "/apex/org.strand.engine/etc/strand.conf"
+    std::string generic = access("/apex/org.strand.core/etc/strand.conf", R_OK) == 0
+            ? "/apex/org.strand.core/etc/strand.conf"
             : "/system_ext/etc/strand/strand.conf";
     return {generic, "/system_ext/etc/strand/device.conf"};
 }

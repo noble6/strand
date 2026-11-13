@@ -6,7 +6,7 @@ faster SurfaceFlinger blur.
 | Directory | What |
 | --- | --- |
 | `daemon/` | `strandd` (root, own SELinux domain) and `strandctl` |
-| `apex/` | `org.strand.engine`: the daemon and profiles as an updatable APEX |
+| `apex/` | `org.strand.core`: the daemon and profiles as an updatable APEX |
 | `app/` | Strand app: profiles, per-app profiles, system health, nerd mode, Resona, QS tiles |
 | `audio/` | Resona sound engine as an Android audio effect (`libresonafx`) |
 | `config/` | generic profiles, `/system_ext/etc/strand/strand.conf` |
@@ -90,7 +90,7 @@ Init socket `/dev/socket/strandd`, one command per line. The reply is
 | `clearcache` | `pm trim-caches` for every app |
 | `dexopt FILTER PKG...` | `pm compile -m FILTER -f` (speed-profile, speed, verify, everything) |
 
-    adb shell /apex/org.strand.engine/bin/strandctl status
+    adb shell /apex/org.strand.core/bin/strandctl status
 
 ## Blur
 
@@ -118,7 +118,7 @@ turns the cache off. Hit counts are logged every 1024 frames
 ## Updates without a ROM build
 
 The daemon and the generic profiles ship as the updatable APEX
-`org.strand.engine` (product partition); the app is a normal priv-app.
+`org.strand.core` (product partition); the app is a normal priv-app.
 `tools/make-release.sh`, run in the ROM tree that built the device's ROM,
 publishes both with an `update.json` (versions, SHA-256) as a GitHub release.
 The app's Updates screen checks the latest release, verifies the checksums,

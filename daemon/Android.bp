@@ -12,7 +12,7 @@ cc_defaults {
     cpp_std: "c++17",
     apex_available: [
         "//apex_available:platform",
-        "org.strand.engine",
+        "org.strand.core",
     ],
     min_sdk_version: "34",
 }
@@ -28,7 +28,13 @@ cc_binary {
         "util.cpp",
     ],
     shared_libs: ["liblog"],
-    init_rc: ["strandd.rc"],
+}
+
+// Packed into the APEX (etc/strandd.rc), where init reads it
+prebuilt_etc {
+    name: "strandd.rc",
+    src: "strandd.rc",
+    installable: false,
 }
 
 cc_binary {

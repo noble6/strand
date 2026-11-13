@@ -1,4 +1,4 @@
-service strandd /apex/org.strand.engine/bin/strandd
+service strandd /apex/org.strand.core/bin/strandd
     class main
     user root
     group root system readproc

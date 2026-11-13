@@ -11,7 +11,7 @@ endif
 PRODUCT_PACKAGES += \
     Strand \
     libresonafx \
-    org.strand.engine \
+    org.strand.core \
     strand-data.rc
 
 ifneq ($(STRAND_DEVICE_CONFIG),)

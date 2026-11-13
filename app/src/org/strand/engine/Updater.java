@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 /**
- * Updates Strand without a ROM build: the engine (org.strand.engine APEX:
+ * Updates Strand without a ROM build: the engine (org.strand.core APEX:
  * strandd and the profiles) and this app, from the GitHub releases of
  * noble6/strand (tools/make-release.sh makes them).
  *
@@ -37,8 +37,8 @@ import java.util.function.Consumer;
  */
 final class Updater {
     static final String RELEASES = "https://api.github.com/repos/noble6/strand/releases/latest";
-    static final String APEX = "org.strand.engine";
-    static final String APEX_FILE = "org.strand.engine.apex";
+    static final String APEX = "org.strand.core";
+    static final String APEX_FILE = "org.strand.core.apex";
     static final String APK_FILE = "Strand.apk";
     private static final String ACTION_RESULT = "org.strand.engine.UPDATE_RESULT";
 
