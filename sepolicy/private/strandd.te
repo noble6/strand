@@ -53,6 +53,7 @@ allow strandd system_file:file rx_file_perms;
 binder_use(strandd)
 binder_call(strandd, system_server)
 allow strandd {
+    device_config_service
     notification_service
     package_service
     power_service
