@@ -2,3 +2,6 @@ traces/
 daemon/*.o
 daemon/strandd
 daemon/strandctl
+audio/tests/fx_test
+audio/tests/glue_test
+audio/tests/libresonafx.so

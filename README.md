@@ -6,7 +6,8 @@ faster SurfaceFlinger blur.
 | Directory | What |
 | --- | --- |
 | `daemon/` | `strandd` (root, own SELinux domain) and `strandctl` |
-| `app/` | Strand app: profiles, per-app profiles, system health, nerd mode, QS tile |
+| `app/` | Strand app: profiles, per-app profiles, system health, nerd mode, Resona, QS tiles |
+| `audio/` | Resona sound engine as an Android audio effect (`libresonafx`) |
 | `config/` | generic profiles, `/system_ext/etc/strand/strand.conf` |
 | `sepolicy/` | system_ext policy for strandd |
 | `patches/` | patches for other repos (frameworks/native: Strand blur) |
@@ -85,6 +86,48 @@ only for HDR input) and discard old contents. `sys.strand.blur.lite=1` (set
 by the battery profile) caps the passes at two; `ro.strand.blur.cache=false`
 turns the cache off. Hit counts are logged every 1024 frames
 (`logcat -s RenderEngine`) and passes show in perfetto as `StrandBlur *`.
+
+## Resona
+
+The Resona sound engine (github.com/noble6/resona), the same DSP as Resona
+for Linux, as an open audio effect on the output mix: spatial HRTF, DeepBass,
+Intelligent EQ, Clarity, Voice Focus, 3D Stage, Ambience, Tube Warmth, Smart
+Leveler, Adaptive Loudness, 10-band EQ, correction EQ and a lookahead limiter.
+
+- `audio/resona/` is the engine, copied unmodified (`audio/sync-resona.sh`).
+  `audio/effect/` wraps it as an effect library: parameters go through the
+  engine's lock-free control block, so the audio thread never waits, and a
+  rebuild (sample rate change) passes audio through instead of blocking.
+- No proprietary blobs and no extra HAL service: one library loaded by the
+  audio effect HAL. Turning Resona off releases the effect, so offloaded
+  playback comes back.
+- The app keeps the effect on the output mix from boot, follows the output
+  (speaker, headphones, external), sends the stream volume for the
+  level-aware stages, and recreates the effect if audioserver restarts.
+  Profiles and per-device memory match Resona on Linux; Auto picks Music,
+  Movie, Gaming or Voice from what is playing.
+- Built-in speakers get the small-driver tuning (psychoacoustic bass, gentle
+  low shelf, 1 dB more limiter headroom).
+
+Register it in the device's `audio_effects.xml`
+(`audio/audio_effects.xml.example`).
+
+Tests: `make -C audio/tests` (limiter ceiling, garbage input, threads, CPU),
+`make -C audio/tests tsan`, `asan`, and `glue` (loads the library like the
+audio HAL; needs AOSP headers), `audio/tests/check_params.py`.
+Measured on the host: all effects on, 48 kHz stereo, about 1% of one core.
+
+## Licenses and credits
+
+Strand is Apache-2.0. Resona (`audio/`, `app/src/org/strand/engine/resona/`)
+is GPL-3.0-or-later; an app build that includes it is distributed under the
+GPL-3.0.
+
+- Resona: noble6 and rajdeep-3305, https://github.com/noble6/resona
+- Lunaris Dolby (hardware/dolby, nekoshirro and contributors): reference for
+  how a ROM ships a system sound app on the output mix. No code is used.
+- The blur builds on AOSP's KawaseBlurDualFilterV2 (The Android Open Source
+  Project); Axion OS's blur research was read for ideas, no code is used.
 
 ## Tests
 

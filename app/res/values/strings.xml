@@ -14,6 +14,8 @@
     <string name="desc_other">Custom profile.</string>
     <string name="effective_app">%1$s for %2$s</string>
 
+    <string name="sound_title">Sound (Resona)</string>
+    <string name="sound_summary">Spatial audio, DeepBass, Intelligent EQ and more</string>
     <string name="apps_title">Per-app profiles</string>
     <string name="apps_summary">Switch profile while an app is in front</string>
     <string name="apps_default">Default</string>

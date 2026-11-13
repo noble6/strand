@@ -1,0 +1,39 @@
+// Resona effect: the Resona DSP engine (resona/, GPL-3.0-or-later) as an
+// Android audio effect library.
+package {
+    default_applicable_licenses: ["strand_audio_license"],
+}
+
+license {
+    name: "strand_audio_license",
+    visibility: [":__subpackages__"],
+    license_kinds: ["SPDX-license-identifier-GPL-3.0-or-later"],
+    license_text: ["resona/LICENSE"],
+}
+
+cc_library_shared {
+    name: "libresonafx",
+    vendor: true,
+    relative_install_path: "soundfx",
+    srcs: [
+        "effect/resona_effect.c",
+        "effect/resona_fx.c",
+    ],
+    cflags: [
+        // Same as the Resona engine build: fast math, but isfinite() must work
+        "-O2",
+        "-ffast-math",
+        "-fno-finite-math-only",
+        "-fvisibility=hidden",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-Wno-unused-function",
+    ],
+    c_std: "gnu11",
+    header_libs: [
+        "libaudioeffects",
+        "libhardware_headers",
+    ],
+    shared_libs: ["liblog"],
+}

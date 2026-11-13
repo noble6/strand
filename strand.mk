@@ -6,6 +6,7 @@
 
 PRODUCT_PACKAGES += \
     Strand \
+    libresonafx \
     strand.conf \
     strandctl \
     strandd
@@ -21,3 +22,6 @@ SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS += vendor/strand/sepolicy/private
 # Strand blur (frameworks/native patch): on by default there, cache on
 PRODUCT_SYSTEM_EXT_PROPERTIES += \
     ro.strand.blur.cache=true
+
+# Resona sound engine (audio/): register the effect in the device's
+# audio_effects.xml, see audio/audio_effects.xml.example.

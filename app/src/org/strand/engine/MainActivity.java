@@ -83,6 +83,8 @@ public class MainActivity extends Activity {
         }
 
         mColumn.addView(Ui.section(this, getString(R.string.section_more)));
+        addLink(R.string.sound_title, R.string.sound_summary,
+                org.strand.engine.resona.ResonaActivity.class);
         addLink(R.string.apps_title, R.string.apps_summary, AppProfilesActivity.class);
         addLink(R.string.health_title, R.string.health_summary, HealthActivity.class);
         addLink(R.string.nerd_title, R.string.nerd_summary, NerdActivity.class);

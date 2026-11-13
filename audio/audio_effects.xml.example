@@ -1,0 +1,7 @@
+<!-- In the device's audio_effects.xml -->
+<libraries>
+    <library name="resona" path="libresonafx.so"/>
+</libraries>
+<effects>
+    <effect name="resona" library="resona" uuid="2f3c6d81-5b0e-4c7a-9e14-5245534f4e41"/>
+</effects>
