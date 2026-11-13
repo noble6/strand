@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="org.strand.engine"
+    android:versionCode="2"
+    android:versionName="2"
     android:sharedUserId="android.uid.system">
 
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
@@ -8,6 +10,9 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.REBOOT" />
 
     <application
         android:name=".StrandApplication"
@@ -34,6 +39,7 @@
         <activity android:name=".AppProfilesActivity" android:exported="false" />
         <activity android:name=".HealthActivity" android:exported="false" />
         <activity android:name=".NerdActivity" android:exported="false" />
+        <activity android:name=".UpdateActivity" android:exported="false" />
         <activity
             android:name=".resona.ResonaActivity"
             android:exported="true"

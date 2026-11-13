@@ -4,12 +4,15 @@
 #   /system_ext/etc/strand/device.conf
 # (STRAND_DEVICE_CONFIG := path/to/device.conf does that).
 
+ifeq ($(wildcard vendor/strand/apex/keys/org.strand.engine.pem),)
+$(error Strand: no APEX signing keys. Run vendor/strand/tools/make-keys.sh once, and back up vendor/strand/apex/keys)
+endif
+
 PRODUCT_PACKAGES += \
     Strand \
     libresonafx \
-    strand.conf \
-    strandctl \
-    strandd
+    org.strand.engine \
+    strand-data.rc
 
 ifneq ($(STRAND_DEVICE_CONFIG),)
 PRODUCT_COPY_FILES += \

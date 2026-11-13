@@ -1,3 +1,3 @@
-/system_ext/bin/strandd         u:object_r:strandd_exec:s0
+# strandd is labelled by the APEX file_contexts (apex/file_contexts)
 /data/misc/strand(/.*)?         u:object_r:strandd_data_file:s0
 /dev/socket/strandd             u:object_r:strandd_socket:s0

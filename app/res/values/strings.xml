@@ -59,6 +59,22 @@
     <string name="nerd_temp">Battery temperature (°C)</string>
     <string name="nerd_raw">Raw counters</string>
 
+    <string name="low_storage_title">Storage almost full</string>
+    <string name="low_storage_desc">Only %1$s%% free. Flash storage slows down when it is this full; Strand cleared app caches, but moving or deleting files helps most.</string>
+
+    <string name="update_title">Updates</string>
+    <string name="update_summary">Update the Strand engine and app without a new ROM</string>
+    <string name="update_installed">Engine %1$d, app %2$d</string>
+    <string name="update_check">Check for updates</string>
+    <string name="update_checking">Checking…</string>
+    <string name="update_none">Up to date (%1$s)</string>
+    <string name="update_available">%1$s: engine %2$d, app %3$d</string>
+    <string name="update_install">Download and install</string>
+    <string name="update_staged">Installed. It takes effect after a restart.</string>
+    <string name="update_reboot">Restart now</string>
+    <string name="update_error">Couldn\'t update: %1$s</string>
+    <string name="update_about">Updates come from github.com/noble6/strand and install only if they carry the same signing keys as this build.</string>
+
     <string name="ok">OK</string>
     <string name="cancel">Cancel</string>
 </resources>

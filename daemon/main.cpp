@@ -18,9 +18,6 @@
 
 #include <dirent.h>
 
-#ifdef __ANDROID__
-#include <cutils/sockets.h>
-#endif
 
 #include "config.h"
 #include "engine.h"
@@ -30,25 +27,30 @@ using namespace strand;
 
 namespace {
 
-constexpr const char* kVersion = "1";
+constexpr const char* kVersion = "2";
 constexpr int kMaxClients = 8;
 
 std::vector<std::string> configFiles() {
     if (const char* env = getenv("STRAND_CONFIG")) return split(env);
-    return {"/system_ext/etc/strand/strand.conf", "/system_ext/etc/strand/device.conf"};
+    // The generic config ships in the Strand APEX (updatable); the device's on system_ext
+    std::string generic = access("/apex/org.strand.engine/etc/strand.conf", R_OK) == 0
+            ? "/apex/org.strand.engine/etc/strand.conf"
+            : "/system_ext/etc/strand/strand.conf";
+    return {generic, "/system_ext/etc/strand/device.conf"};
 }
 
 int listenSocket() {
-#ifdef __ANDROID__
-    int fd = android_get_control_socket("strandd");
-    if (fd >= 0) {
+    // init passes the socket from the rc file as ANDROID_SOCKET_strandd=<fd>
+    // (what libcutils' android_get_control_socket reads)
+    const char* env = getenv("ANDROID_SOCKET_strandd");
+    int fd = env ? atoi(env) : -1;
+    if (fd > 2) {
         if (listen(fd, 4)) {
             loge("listen: %s", strerror(errno));
             return -1;
         }
         return fd;
     }
-#endif
     // Host tests, or started by hand
     const char* path = getenv("STRAND_SOCKET");
     if (!path) path = "/dev/socket/strandd";
@@ -150,7 +152,14 @@ std::string handle(Engine& engine, const std::string& line) {
         }
         return "ok\n" + engine.apps();
     }
+    if (c == "version") return std::string("ok ") + kVersion + "\n";
     if (c == "trim") return engine.queueTrim() ? "ok queued\n" : "err busy\n";
+    if (c == "thermal") {
+        if (w.size() != 2 || w[1].find_first_not_of("0123456789") != std::string::npos)
+            return "err usage: thermal STATUS\n";
+        engine.setThermal(atoi(w[1].c_str()));
+        return "ok\n";
+    }
     if (c == "gc") return engine.queueGc() ? "ok queued\n" : "err busy\n";
     if (c == "stop") {
         engine.stopMaintenance();

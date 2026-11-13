@@ -1,0 +1,2 @@
+(/.*)?                  u:object_r:system_file:s0
+/bin/strandd            u:object_r:strandd_exec:s0

@@ -6,6 +6,7 @@ faster SurfaceFlinger blur.
 | Directory | What |
 | --- | --- |
 | `daemon/` | `strandd` (root, own SELinux domain) and `strandctl` |
+| `apex/` | `org.strand.engine`: the daemon and profiles as an updatable APEX |
 | `app/` | Strand app: profiles, per-app profiles, system health, nerd mode, Resona, QS tiles |
 | `audio/` | Resona sound engine as an Android audio effect (`libresonafx`) |
 | `config/` | generic profiles, `/system_ext/etc/strand/strand.conf` |
@@ -45,6 +46,12 @@ The chosen profile and per-app list are kept in `/data/misc/strand/state`.
   GPU above `gpu_busy_pct` for `gpu_busy_s`. Quiet means no compaction kicks
   and no maintenance until it ends.
 - Battery profile: Doze about 10 minutes after the screen goes off.
+- `[base]` turns on Android's Smart Idle Maintenance (vold paces f2fs GC from
+  the write rate and flash wear; built in since Android 13, off by default).
+- Nearly full storage is slow storage: under `low_storage_pct` free, strandd
+  clears app caches (once a day, never during a game) and the app warns.
+- Hot device (thermal status `hot_status` or worse): the `[hot]` actions apply
+  (lighter blur) and the system is quiet until it cools.
 
 ### Config
 
@@ -74,10 +81,12 @@ Init socket `/dev/socket/strandd`, one command per line. The reply is
 | `trim` | FITRIM on `[trim]` paths |
 | `gc`, `stop` | f2fs GC until clean; `stop` ends maintenance (idle window over) |
 | `games clear`, `games add PKG...`, `autogame on\|off` | game list and auto game mode |
+| `thermal STATUS` | PowerManager thermal status (the app sends it) |
+| `version` | daemon protocol version |
 | `clearcache` | `pm trim-caches` for every app |
 | `dexopt FILTER PKG...` | `pm compile -m FILTER -f` (speed-profile, speed, verify, everything) |
 
-    adb shell strandctl status
+    adb shell /apex/org.strand.engine/bin/strandctl status
 
 ## Blur
 
@@ -101,6 +110,23 @@ only for HDR input) and discard old contents. `sys.strand.blur.lite=1` (set
 by the battery profile) caps the passes at two; `ro.strand.blur.cache=false`
 turns the cache off. Hit counts are logged every 1024 frames
 (`logcat -s RenderEngine`) and passes show in perfetto as `StrandBlur *`.
+
+## Updates without a ROM build
+
+The daemon and the generic profiles ship as the updatable APEX
+`org.strand.engine` (product partition); the app is a normal priv-app.
+`tools/make-release.sh`, run in the ROM tree that built the device's ROM,
+publishes both with an `update.json` (versions, SHA-256) as a GitHub release.
+The app's Updates screen checks the latest release, verifies the checksums,
+and stages both in one install that applies on the next reboot (Android only
+updates a persistent app that way, the same way Mainline modules update).
+Package manager accepts them only with the same keys as the installed build.
+
+Keys: run `vendor/strand/tools/make-keys.sh` once in a ROM tree. It creates
+the APEX keys in `vendor/strand/apex/keys/`, which is never committed; the
+build stops if they are missing. Back that folder up with your other signing
+keys: updates must carry the same keys as the ROM. The Resona effect library is in the vendor
+partition and still needs a ROM update.
 
 ## Resona
 

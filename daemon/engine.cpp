@@ -148,6 +148,8 @@ void Engine::saveJournal() {
     std::string s = bootId() + "\n";
     for (auto& ap : profileUndo_) s += encode(ap) + "\n";
     for (auto& ap : pressureUndo_) s += encode(ap) + "\n";
+    for (auto& ap : hotUndo_) s += encode(ap) + "\n";
+    for (auto& ap : baseUndo_) s += encode(ap) + "\n";
     writeFile(kJournal, s);
 }
 
@@ -159,7 +161,13 @@ std::string Engine::effectiveLocked() {
 }
 
 bool Engine::quietLocked() {
-    return games_.count(topApp_) > 0 || gpuHeavy_;
+    return games_.count(topApp_) > 0 || gpuHeavy_ || thermal_ >= cfg_.hotStatus;
+}
+
+void Engine::setThermal(int status) {
+    std::lock_guard<std::mutex> lock(m_);
+    thermal_ = status;
+    applyCv_.notify_all();
 }
 
 bool Engine::quiet() {
@@ -243,6 +251,32 @@ void Engine::tick() {
         std::string v;
         if (readLine(cfg_.gpuBusyPath, &v)) gpu = atoi(trim(v).c_str());
     }
+    // Free space on /data, every 10 minutes
+    bool clearCaches = false;
+    {
+        std::lock_guard<std::mutex> lock(m_);
+        int64_t now = nowMs();
+        if (!lastStorageCheckMs_ || now - lastStorageCheckMs_ >= 600000) {
+            lastStorageCheckMs_ = now;
+            struct statvfs st;
+            if (!statvfs(realPath("/data").c_str(), &st) && st.f_blocks) {
+                dataFreePct_ = (int)(100.0 * st.f_bavail / st.f_blocks);
+                lowStorage_ = dataFreePct_ < cfg_.lowStoragePct;
+                // Nearly full flash is slow flash: give back the app caches,
+                // at most once a day and never during a game
+                if (lowStorage_ && !quietLocked() &&
+                    (!lastAutoClearMs_ || now - lastAutoClearMs_ >= 86400000LL)) {
+                    lastAutoClearMs_ = now;
+                    clearCaches = true;
+                }
+            }
+        }
+    }
+    if (clearCaches) {
+        logi("low storage (%d%% free): clearing app caches", dataFreePct_);
+        queueClearCache();
+    }
+
     std::lock_guard<std::mutex> lock(m_);
     if (gpu >= 0) {
         int64_t now = nowMs();
@@ -265,12 +299,18 @@ void Engine::applyLoop() {
     // up after strandd: undo the last run and apply nothing before boot.
     while (getProp("sys.boot_completed") != "1") sleep(1);
     recoverJournal();
+    {
+        std::vector<Applied> base = applyActions(cfg_.base);
+        std::lock_guard<std::mutex> lock(m_);
+        baseUndo_ = std::move(base);
+        saveJournal();
+    }
 
     std::unique_lock<std::mutex> lock(m_);
     for (;;) {
         applyCv_.wait(lock, [this] {
             return effectiveLocked() != appliedProfile_ || pressureWanted_ != pressureApplied_ ||
-                   kickPending_;
+                   (thermal_ >= cfg_.hotStatus) != hotApplied_ || kickPending_;
         });
         if (kickPending_) {
             kickPending_ = false;
@@ -282,6 +322,7 @@ void Engine::applyLoop() {
         }
         const std::string want = effectiveLocked();
         const bool wantPressure = pressureWanted_;
+        const bool wantHot = thermal_ >= cfg_.hotStatus;
         const Profile* p = cfg_.find(want);
         if (!p) {
             logw("unknown profile %s", want.c_str());
@@ -291,12 +332,16 @@ void Engine::applyLoop() {
 
         // Pressure tweaks sit on top of the profile: take them off first so
         // each layer restores the values it found.
-        std::vector<Applied> pUndo, prUndo;
+        // Overlays (pressure on top of hot on top of the profile) come off in
+        // reverse order so each restores the values it found.
+        std::vector<Applied> pUndo, prUndo, hUndo;
         std::swap(prUndo, pressureUndo_);
+        std::swap(hUndo, hotUndo_);
         if (profileChange) std::swap(pUndo, profileUndo_);
         lock.unlock();
 
         revertActions(&prUndo);
+        revertActions(&hUndo);
         if (profileChange) {
             revertActions(&pUndo);
             logi("profile %s", p->name.c_str());
@@ -305,6 +350,7 @@ void Engine::applyLoop() {
         std::vector<Action> pressureWrites;
         for (auto& a : cfg_.pressure)
             if (a.kind != Action::Kick) pressureWrites.push_back(a);
+        if (wantHot) hUndo = applyActions(cfg_.hot);
         if (wantPressure) prUndo = applyActions(pressureWrites);
 
         lock.lock();
@@ -314,6 +360,8 @@ void Engine::applyLoop() {
         }
         pressureUndo_ = std::move(prUndo);
         pressureApplied_ = wantPressure;
+        hotUndo_ = std::move(hUndo);
+        hotApplied_ = wantHot;
         saveJournal();
     }
 }
@@ -514,7 +562,11 @@ std::string Engine::status() {
       << "quiet " << (quietLocked() ? 1 : 0) << "\n"
       << "gpu_heavy " << (gpuHeavy_ ? 1 : 0) << "\n"
       << "autogame " << (autoGame_ ? 1 : 0) << "\n"
-      << "games " << games_.size() << "\n";
+      << "games " << games_.size() << "\n"
+      << "thermal " << thermal_ << "\n"
+      << "hot " << (hotApplied_ ? 1 : 0) << "\n"
+      << "data_free_pct " << dataFreePct_ << "\n"
+      << "low_storage " << (lowStorage_ ? 1 : 0) << "\n";
     return o.str();
 }
 

@@ -1,7 +1,4 @@
-on post-fs-data
-    mkdir /data/misc/strand 0700 root root
-
-service strandd /system_ext/bin/strandd
+service strandd /apex/org.strand.engine/bin/strandd
     class main
     user root
     group root system readproc

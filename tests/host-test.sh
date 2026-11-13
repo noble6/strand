@@ -61,7 +61,11 @@ s() { cat "$T/settings/$1" 2>/dev/null || echo null; }
 settle() { sleep 0.4; }
 start
 
-[ "$(ctl ping)" = "ok strandd 1" ] || fail ping
+[ "$(ctl ping)" = "ok strandd 2" ] || fail ping
+settle
+[ "$(s dc.test_ns.flag)" = on ] || fail "base action"
+ctl status | grep -q '^low_storage 1$' || fail "low storage"
+sleep 0.5; grep -q 'package trim-caches' "$T/cmd.log" || fail "low storage cache clear"
 ctl profiles | grep -q '^battery Battery saver$' || fail profiles
 P=/sys/devices/system/cpu/cpufreq
 
@@ -164,6 +168,14 @@ for _ in $(seq 30); do grep -q 0 "$F/gc_urgent" && break; sleep 0.1; done
 ctl status | grep -q 'last_gc dirty dm-5:8000->8000(stopped)' || { ctl status; fail "stop"; }
 [ "$(cat $F/gc_urgent)" = 0 ] || fail "gc_urgent not restored after stop"
 ctl games clear >/dev/null
+
+# Hot device: hot overlay and quiet; back when it cools
+ctl thermal 3 >/dev/null; settle
+[ "$(cat $R/props/sys.strand.blur.lite)" = 1 ] || fail "hot overlay"
+ctl status | grep -q '^quiet 1$' || fail "quiet when hot"
+ctl thermal 1 >/dev/null; settle
+[ "$(cat $R/props/sys.strand.blur.lite)" = "" ] || fail "hot overlay not reverted"
+ctl status | grep -q '^quiet 0$' || fail "quiet after cooling"
 
 # Heavy GPU work (any app) makes the system quiet; it lifts once the load drops
 mkdir -p "$R/sys/class/kgsl/kgsl-3d0"; echo "95 %" >"$R/sys/class/kgsl/kgsl-3d0/gpu_busy_percentage"

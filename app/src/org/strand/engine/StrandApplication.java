@@ -2,6 +2,7 @@
 package org.strand.engine;
 
 import android.app.Application;
+import android.os.PowerManager;
 
 import org.strand.engine.resona.ResonaController;
 
@@ -13,5 +14,10 @@ public class StrandApplication extends Application {
         ResonaController.get(this).start();
         Games.start(this);
         MaintenanceJobService.ensureScheduled(this);
+        // A hot device throttles; strandd goes quiet and lighter while it is
+        PowerManager pm = getSystemService(PowerManager.class);
+        pm.addThermalStatusListener(getMainExecutor(),
+                status -> StrandClient.async("thermal " + status, null));
+        StrandClient.async("thermal " + pm.getCurrentThermalStatus(), null);
     }
 }

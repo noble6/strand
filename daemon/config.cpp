@@ -84,6 +84,7 @@ bool Config::load(const std::vector<std::string>& files, std::string* err) {
                         profile = &profiles.back();
                     }
                 } else if (section != "memory" && section != "pressure" && section != "stats" &&
+                           section != "base" && section != "hot" &&
                            section != "trim" && section != "adaptive") {
                     return fail("unknown section " + section);
                 }
@@ -97,6 +98,8 @@ bool Config::load(const std::vector<std::string>& files, std::string* err) {
                 else if (key == "gpu_busy_s") gpuBusySec = atoi(val.c_str());
                 else if (key == "gc_target_dirty") gcTargetDirty = atoi(val.c_str());
                 else if (key == "gc_max_min") gcMaxMin = atoi(val.c_str());
+                else if (key == "hot_status") hotStatus = atoi(val.c_str());
+                else if (key == "low_storage_pct") lowStoragePct = atoi(val.c_str());
                 else return fail("unknown key " + key);
                 continue;
             }
@@ -115,10 +118,14 @@ bool Config::load(const std::vector<std::string>& files, std::string* err) {
                 continue;
             }
             auto w = split(line);
-            if (section == "profile" || section == "pressure") {
+            if (section == "profile" || section == "pressure" || section == "base" ||
+                section == "hot") {
                 Action a;
                 if (!parseAction(w, &a, err)) return fail(*err);
-                (profile ? profile->actions : pressure).push_back(a);
+                if (profile) profile->actions.push_back(a);
+                else if (section == "pressure") pressure.push_back(a);
+                else if (section == "base") base.push_back(a);
+                else hot.push_back(a);
             } else if (section == "stats") {
                 if (w[0] != "stat" || w.size() < 3 || w.size() > 4) return fail("stat NAME PATH [DIV]");
                 Stat s{w[1], w[2], w.size() == 4 ? atol(w[3].c_str()) : 1};

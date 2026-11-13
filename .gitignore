@@ -5,3 +5,4 @@ daemon/strandctl
 audio/tests/fx_test
 audio/tests/glue_test
 audio/tests/libresonafx.so
+apex/keys/

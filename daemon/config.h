@@ -37,6 +37,13 @@ struct Config {
     int calmSec = 30;
     int kickIntervalSec = 120;
     std::vector<Action> pressure;
+    // Always applied once the system is up (Android features worth turning on)
+    std::vector<Action> base;
+    // Applied while the device is hot (thermal status >= hotStatus)
+    std::vector<Action> hot;
+    int hotStatus = 3;          // PowerManager THERMAL_STATUS_SEVERE
+    // Below this much free space on /data, clear app caches (once a day)
+    int lowStoragePct = 10;
 
     std::vector<Stat> stats;
     std::vector<std::string> trimPaths;

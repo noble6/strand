@@ -73,6 +73,14 @@ public class MainActivity extends Activity {
 
         mColumn.addView(liveStrip());
 
+        if ("1".equals(status.map().get("low_storage"))) {
+            LinearLayout warn = Ui.card(this, getString(R.string.low_storage_title),
+                    getString(R.string.low_storage_desc, status.map().get("data_free_pct")));
+            warn.setBackgroundResource(R.drawable.card_selected);
+            warn.setOnClickListener(v -> startActivity(new Intent(this, HealthActivity.class)));
+            mColumn.addView(warn);
+        }
+
         mColumn.addView(Ui.section(this, getString(R.string.section_profile)));
         for (Profiles.Profile p : list) {
             LinearLayout card = Ui.card(this, p.label, Profiles.description(this, p.name));
@@ -105,6 +113,7 @@ public class MainActivity extends Activity {
         addLink(R.string.apps_title, R.string.apps_summary, AppProfilesActivity.class);
         addLink(R.string.health_title, R.string.health_summary, HealthActivity.class);
         addLink(R.string.nerd_title, R.string.nerd_summary, NerdActivity.class);
+        addLink(R.string.update_title, R.string.update_summary, UpdateActivity.class);
 
         applyStatus(status);
         mHandler.removeCallbacks(mPoll);

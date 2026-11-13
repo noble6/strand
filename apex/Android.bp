@@ -1,0 +1,45 @@
+// org.strand.engine: strandd, strandctl and the generic profiles as an
+// updatable APEX, so the engine updates without a ROM build (see
+// tools/make-release.sh and the app's updater).
+//
+// Keys: tools/make-keys.sh creates them in keys/ (never committed). Updates
+// must be signed with the same keys as the ROM.
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+apex_key {
+    name: "org.strand.engine.key",
+    public_key: "keys/org.strand.engine.avbpubkey",
+    private_key: "keys/org.strand.engine.pem",
+}
+
+android_app_certificate {
+    name: "org.strand.engine.certificate",
+    certificate: "keys/org.strand.engine",
+}
+
+filegroup {
+    name: "org.strand.engine-file_contexts",
+    srcs: ["file_contexts"],
+}
+
+apex {
+    name: "org.strand.engine",
+    manifest: "apex_manifest.json",
+    file_contexts: ":org.strand.engine-file_contexts",
+    key: "org.strand.engine.key",
+    certificate: ":org.strand.engine.certificate",
+    binaries: [
+        "strandctl",
+        "strandd",
+    ],
+    prebuilts: ["strand.conf"],
+    updatable: true,
+    min_sdk_version: "34",
+    // Product, not system_ext: Soong wants system/system_ext APEX
+    // file_contexts inside system/sepolicy, which would need a patch per ROM.
+    product_specific: true,
+    // Plain .apex in the image: the same file is the update payload.
+    compressible: false,
+}

@@ -26,6 +26,7 @@ class Engine {
     void clearAppProfiles();
     void onTopApp(const std::string& pkg);
     void onPressureEvent();
+    void setThermal(int status);  // PowerManager thermal status, from the app
     void tick();  // once a second: pressure calm-down
     bool wantsTopApp();
 
@@ -87,7 +88,12 @@ class Engine {
     // What is applied, owned by the apply thread (read under m_)
     std::string appliedProfile_;
     bool pressureApplied_ = false;
-    std::vector<Applied> profileUndo_, pressureUndo_;
+    std::vector<Applied> profileUndo_, pressureUndo_, hotUndo_, baseUndo_;
+    int thermal_ = 0;
+    bool hotApplied_ = false;
+    bool lowStorage_ = false;
+    int dataFreePct_ = -1;
+    int64_t lastStorageCheckMs_ = 0, lastAutoClearMs_ = 0;
 
     int64_t lastPressureMs_ = 0, lastKickMs_ = 0;
     unsigned long pressureEvents_ = 0, kicks_ = 0;

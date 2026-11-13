@@ -2,9 +2,10 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
+// Installed in the Strand APEX as etc/strand.conf
 prebuilt_etc {
     name: "strand.conf",
     src: "strand.conf",
-    sub_dir: "strand",
-    system_ext_specific: true,
+    apex_available: ["org.strand.engine"],
+    min_sdk_version: "34",
 }

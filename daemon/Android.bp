@@ -4,13 +4,17 @@ package {
 
 cc_defaults {
     name: "strand_defaults",
-    system_ext_specific: true,
     cflags: [
         "-Wall",
         "-Wextra",
         "-Werror",
     ],
     cpp_std: "c++17",
+    apex_available: [
+        "//apex_available:platform",
+        "org.strand.engine",
+    ],
+    min_sdk_version: "34",
 }
 
 cc_binary {
@@ -23,10 +27,7 @@ cc_binary {
         "main.cpp",
         "util.cpp",
     ],
-    shared_libs: [
-        "libcutils",
-        "liblog",
-    ],
+    shared_libs: ["liblog"],
     init_rc: ["strandd.rc"],
 }
 
@@ -34,4 +35,13 @@ cc_binary {
     name: "strandctl",
     defaults: ["strand_defaults"],
     srcs: ["strandctl.cpp"],
+}
+
+// /data/misc/strand must exist before the daemon starts; APEX init scripts
+// are read too late for post-fs-data, so this one lives on system_ext.
+prebuilt_etc {
+    name: "strand-data.rc",
+    src: "strand-data.rc",
+    sub_dir: "init",
+    system_ext_specific: true,
 }
