@@ -1,2 +1,25 @@
 strand-bench strand-performance 2026-11-13T22:34:51+05:30 runs=5 root=1 1600x2560 apps=13
 info: saved
+launch cold: median 341  p90 641  (n=60) ms
+launch warm: median 42  p90 84  (n=65) ms
+  settings cold median 674  p90 690  (n=5)
+  aperture cold median 381  p90 407  (n=5)
+  glimpse cold median 268  p90 276  (n=5)
+  jelly cold median 641  p90 653  (n=5)
+  contacts cold 
+  etar cold median 347  p90 353  (n=5)
+  deskclock cold median 369  p90 498  (n=5)
+  calculator2 cold median 309  p90 310  (n=5)
+  twelve cold median 341  p90 347  (n=5)
+  recorder cold median 207  p90 218  (n=5)
+  messaging cold median 250  p90 258  (n=5)
+  documentsui cold median 356  p90 378  (n=5)
+  dialer cold median 279  p90 280  (n=5)
+jank settings: janky% median 0 permille  p90 0 permille  (n=5)
+  settings p99 frame: median 8  p90 8  (n=5) ms
+jank shade: janky% median 48 permille  p90 52 permille  (n=5)
+  shade p99 frame: median 31  p90 31  (n=5) ms
+retention: 26/27 relaunches stayed cached, lmkd kills 0
+  swap in 106121 out 184698 pages, memory PSI some 103 ms full 0 ms
+  zram: orig 546 MB, compressed 167 MB
+results: /mnt/directstorage/trees/strand/bench/results/strand-performance-20261113-223451
