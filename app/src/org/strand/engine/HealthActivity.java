@@ -24,6 +24,7 @@ public class HealthActivity extends Activity {
 
     private final Handler mHandler = new Handler(Looper.getMainLooper());
     private TextView mStorage, mBattery, mBatteryTemp, mTopApps;
+    private RingGauge mStorageRing, mBatteryRing;
     private TextView mOptStatus, mTrimStatus, mCacheStatus, mGcStatus;
     private List<String> mTop = new ArrayList<>();
     private boolean mResumed;
@@ -39,53 +40,79 @@ public class HealthActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
-        LinearLayout col = Ui.page(this, getString(R.string.health_title), null);
+        LinearLayout col = Ui.page(this, getString(R.string.health_title),
+                getString(R.string.health_summary));
 
-        LinearLayout storage = Ui.card(this, getString(R.string.health_storage), "");
-        mStorage = (TextView) storage.getChildAt(1);
-        col.addView(storage);
+        // Hero: storage and battery health at a glance
+        LinearLayout hero = new LinearLayout(this);
+        hero.setOrientation(LinearLayout.VERTICAL);
+        hero.setBackground(Ui.rounded(this, R.color.primary_container, 32));
+        int hp = Ui.dp(this, 20);
+        hero.setPadding(hp, hp, hp, hp);
+        LinearLayout.LayoutParams hlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        hlp.topMargin = Ui.dp(this, 12);
+        hero.setLayoutParams(hlp);
+        LinearLayout rings = new LinearLayout(this);
+        rings.setOrientation(LinearLayout.HORIZONTAL);
+        int track = (getColor(R.color.on_primary_container) & 0x00ffffff) | 0x26000000;
+        int txt = getColor(R.color.on_primary_container);
+        mStorageRing = new RingGauge(this, getString(R.string.health_storage),
+                getColor(R.color.accent), track, txt);
+        mBatteryRing = new RingGauge(this, getString(R.string.health_battery),
+                getColor(R.color.tertiary), track, txt);
+        rings.addView(mStorageRing, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        rings.addView(mBatteryRing, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        hero.addView(rings);
+        mStorage = Ui.text(this, "", 14, R.color.on_primary_container);
+        mStorage.setPadding(Ui.dp(this, 4), Ui.dp(this, 14), 0, 0);
+        hero.addView(mStorage);
+        mBattery = Ui.text(this, "", 14, R.color.on_primary_container);
+        mBattery.setPadding(Ui.dp(this, 4), Ui.dp(this, 2), 0, 0);
+        hero.addView(mBattery);
+        mBatteryTemp = Ui.text(this, "", 14, R.color.on_primary_container);
+        mBatteryTemp.setPadding(Ui.dp(this, 4), Ui.dp(this, 2), 0, 0);
+        mBatteryTemp.setAlpha(0.8f);
+        hero.addView(mBatteryTemp);
+        col.addView(hero);
 
-        LinearLayout battery = Ui.card(this, getString(R.string.health_battery), "");
-        mBattery = (TextView) battery.getChildAt(1);
-        mBatteryTemp = Ui.text(this, "", 14, R.color.text_dim);
-        battery.addView(mBatteryTemp);
-        col.addView(battery);
+        col.addView(Ui.section(this, getString(R.string.health_maintenance)));
 
-        col.addView(Ui.section(this, getString(R.string.section_more)));
-
-        LinearLayout opt = Ui.card(this, getString(R.string.health_optimize),
-                getString(R.string.health_optimize_desc));
+        LinearLayout opt = action(R.drawable.ic_rocket, R.string.health_optimize,
+                R.string.health_optimize_desc);
         mTopApps = Ui.text(this, "", 13, R.color.text_dim);
-        mTopApps.setPadding(0, Ui.dp(this, 6), 0, 0);
+        mTopApps.setPadding(0, Ui.dp(this, 8), 0, 0);
         opt.addView(mTopApps);
         mOptStatus = status(opt);
         LinearLayout buttons = new LinearLayout(this);
         buttons.setOrientation(LinearLayout.HORIZONTAL);
         buttons.addView(Ui.button(this, getString(R.string.health_run), v -> optimize(false)));
-        TextView max = Ui.button(this, getString(R.string.health_optimize_max),
+        TextView max = Ui.tonalButton(this, getString(R.string.health_optimize_max),
                 v -> optimize(true));
         ((LinearLayout.LayoutParams) max.getLayoutParams()).setMarginStart(Ui.dp(this, 8));
         buttons.addView(max);
         opt.addView(buttons);
         col.addView(opt);
 
-        LinearLayout trim = Ui.card(this, getString(R.string.health_trim),
-                getString(R.string.health_trim_desc));
-        mTrimStatus = status(trim);
-        trim.addView(Ui.button(this, getString(R.string.health_run),
-                v -> send("trim", mTrimStatus)));
-        col.addView(trim);
-
-        LinearLayout gc = Ui.card(this, getString(R.string.health_gc),
-                getString(R.string.health_gc_desc));
+        LinearLayout gc = action(R.drawable.ic_storage, R.string.health_gc,
+                R.string.health_gc_desc);
         mGcStatus = status(gc);
         gc.addView(Ui.button(this, getString(R.string.health_run), v -> send("gc", mGcStatus)));
         col.addView(gc);
 
-        LinearLayout cache = Ui.card(this, getString(R.string.health_cache),
-                getString(R.string.health_cache_desc));
+        LinearLayout trim = action(R.drawable.ic_trim, R.string.health_trim,
+                R.string.health_trim_desc);
+        mTrimStatus = status(trim);
+        trim.addView(Ui.tonalButton(this, getString(R.string.health_run),
+                v -> send("trim", mTrimStatus)));
+        col.addView(trim);
+
+        LinearLayout cache = action(R.drawable.ic_clean, R.string.health_cache,
+                R.string.health_cache_desc);
         mCacheStatus = status(cache);
-        cache.addView(Ui.button(this, getString(R.string.health_run), v ->
+        cache.addView(Ui.tonalButton(this, getString(R.string.health_run), v ->
                 new AlertDialog.Builder(this)
                         .setMessage(R.string.health_cache_confirm)
                         .setPositiveButton(R.string.ok, (d, w) -> send("clearcache", mCacheStatus))
@@ -93,18 +120,8 @@ public class HealthActivity extends Activity {
                         .show()));
         col.addView(cache);
 
-        LinearLayout auto = new LinearLayout(this);
-        auto.setOrientation(LinearLayout.HORIZONTAL);
-        auto.setGravity(Gravity.CENTER_VERTICAL);
-        auto.setBackgroundResource(R.drawable.card);
-        int p = Ui.dp(this, 18);
-        auto.setPadding(p, p, p, p);
-        LinearLayout texts = new LinearLayout(this);
-        texts.setOrientation(LinearLayout.VERTICAL);
-        texts.addView(Ui.text(this, getString(R.string.health_auto), 18, R.color.text));
-        texts.addView(Ui.text(this, getString(R.string.health_auto_desc), 14, R.color.text_dim));
-        auto.addView(texts, new LinearLayout.LayoutParams(0,
-                ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        col.addView(Ui.section(this, getString(R.string.health_automatic)));
+        Ui.Group autoGroup = new Ui.Group(this);
         Switch sw = new Switch(this);
         sw.setChecked(MaintenanceJobService.prefs(this)
                 .getBoolean(MaintenanceJobService.PREF_AUTO, true));
@@ -113,8 +130,9 @@ public class HealthActivity extends Activity {
                     .putBoolean(MaintenanceJobService.PREF_AUTO, on).apply();
             MaintenanceJobService.ensureScheduled(this);
         });
-        auto.addView(sw);
-        col.addView(auto);
+        autoGroup.addView(Ui.row(this, R.drawable.ic_sparkle, getString(R.string.health_auto),
+                getString(R.string.health_auto_desc), sw, null));
+        col.addView(autoGroup);
 
         new Thread(() -> {
             List<String> top = UsageAnalyzer.topApps(this, MaintenanceJobService.TOP_APPS);
@@ -124,6 +142,32 @@ public class HealthActivity extends Activity {
                         : getString(R.string.health_top_apps, labels(top)));
             });
         }).start();
+    }
+
+    /** Maintenance card: icon badge and title on one line, the explanation below. */
+    private LinearLayout action(int icon, int title, int desc) {
+        LinearLayout c = new LinearLayout(this);
+        c.setOrientation(LinearLayout.VERTICAL);
+        c.setBackground(Ui.rounded(this, R.color.surface, 28));
+        int p = Ui.dp(this, 20);
+        c.setPadding(p, p, p, p);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.bottomMargin = Ui.dp(this, 8);
+        c.setLayoutParams(lp);
+        LinearLayout head = new LinearLayout(this);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        android.widget.ImageView b = Ui.badge(this, icon, R.color.secondary_container,
+                R.color.on_secondary_container, 40);
+        ((LinearLayout.LayoutParams) b.getLayoutParams()).setMarginEnd(Ui.dp(this, 14));
+        head.addView(b);
+        head.addView(Ui.text(this, getString(title), 18, R.color.text, 500));
+        c.addView(head);
+        TextView d = Ui.text(this, getString(desc), 14, R.color.text_dim);
+        d.setPadding(0, Ui.dp(this, 12), 0, 0);
+        d.setLineSpacing(0, 1.1f);
+        c.addView(d);
+        return c;
     }
 
     private TextView status(LinearLayout card) {
@@ -195,6 +239,10 @@ public class HealthActivity extends Activity {
             runOnUiThread(() -> {
                 mStorage.setText(getString(R.string.health_storage_value, Ui.bytes(free),
                         Ui.bytes(total)));
+                if (total > 0) {
+                    float used = 1f - free / (float) total;
+                    mStorageRing.set(used, Math.round(used * 100) + "%");
+                }
                 if (st != null) showBattery(st.map());
                 if (status != null) showJobs(status.map());
             });
@@ -206,8 +254,9 @@ public class HealthActivity extends Activity {
         long design = MainActivity.parse(m.get("battery_design_uah"));
         String cycles = m.getOrDefault("battery_cycles", "?");
         if (design > 0 && full > 0) {
-            mBattery.setText(getString(R.string.health_battery_value,
-                    (int) Math.round(100.0 * full / design), cycles));
+            int health = (int) Math.round(100.0 * full / design);
+            mBattery.setText(getString(R.string.health_battery_value, health, cycles));
+            mBatteryRing.set(Math.min(1f, health / 100f), health + "%");
         } else {
             mBattery.setText(m.getOrDefault("battery_pct", "?") + "%");
         }

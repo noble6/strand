@@ -34,7 +34,7 @@ public class AppProfilesActivity extends Activity {
         TextView profile;
     }
 
-    private LinearLayout mList;
+    private Ui.Group mList;
     private final List<App> mApps = new ArrayList<>();
     private final Map<String, String> mAssigned = new HashMap<>();
     private List<Profiles.Profile> mProfiles = new ArrayList<>();
@@ -48,9 +48,15 @@ public class AppProfilesActivity extends Activity {
         EditText search = new EditText(this);
         search.setHint(R.string.apps_search);
         search.setSingleLine(true);
-        search.setBackgroundResource(R.drawable.card);
-        int p = Ui.dp(this, 16);
-        search.setPadding(p, p, p, p);
+        search.setBackground(Ui.rounded(this, R.color.surface_high, 28));
+        int p = Ui.dp(this, 20);
+        search.setPadding(p, Ui.dp(this, 16), p, Ui.dp(this, 16));
+        search.setTextColor(getColor(R.color.text));
+        search.setHintTextColor(getColor(R.color.text_dim));
+        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        slp.topMargin = Ui.dp(this, 8);
+        search.setLayoutParams(slp);
         search.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
             @Override public void onTextChanged(CharSequence s, int a, int b, int c) {}
@@ -58,8 +64,7 @@ public class AppProfilesActivity extends Activity {
         });
         col.addView(search);
 
-        mList = new LinearLayout(this);
-        mList.setOrientation(LinearLayout.VERTICAL);
+        mList = new Ui.Group(this);
         mList.setPadding(0, Ui.dp(this, 12), 0, 0);
         col.addView(mList);
 
@@ -102,13 +107,11 @@ public class AppProfilesActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setBackgroundResource(R.drawable.card);
-        int p = Ui.dp(this, 14);
-        row.setPadding(p, p, p, p);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.bottomMargin = Ui.dp(this, 6);
-        row.setLayoutParams(lp);
+        row.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 16), Ui.dp(this, 12));
+        row.setMinimumHeight(Ui.dp(this, 68));
+        row.setClickable(true);
+        row.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         ImageView icon = new ImageView(this);
         icon.setImageDrawable(a.icon);
@@ -119,7 +122,7 @@ public class AppProfilesActivity extends Activity {
 
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
-        texts.addView(Ui.text(this, a.label, 16, R.color.text));
+        texts.addView(Ui.text(this, a.label, 16, R.color.text, 500));
         a.profile = Ui.text(this, "", 13, R.color.text_dim);
         texts.addView(a.profile);
         row.addView(texts, new LinearLayout.LayoutParams(0,
@@ -170,5 +173,6 @@ public class AppProfilesActivity extends Activity {
                     || a.pkg.contains(needle);
             a.row.setVisibility(show ? android.view.View.VISIBLE : android.view.View.GONE);
         }
+        mList.restyle();
     }
 }

@@ -24,9 +24,11 @@
     <string name="health_title">System health</string>
     <string name="health_summary">Storage, battery, app optimization</string>
     <string name="health_storage">Storage</string>
-    <string name="health_storage_value">%1$s free of %2$s</string>
+    <string name="health_maintenance">Maintenance</string>
+    <string name="health_automatic">Automatic</string>
+    <string name="health_storage_value">Storage: %1$s free of %2$s</string>
     <string name="health_battery">Battery</string>
-    <string name="health_battery_value">%1$d%% of design capacity, %2$s cycles</string>
+    <string name="health_battery_value">Battery: %1$d%% of design capacity, %2$s cycles</string>
     <string name="health_battery_temp">Temperature %1$.1f °C</string>
     <string name="health_optimize">Optimize frequently used apps</string>
     <string name="health_optimize_desc">Recompiles the apps you use most with their latest usage profiles, so they start and scroll faster.</string>
@@ -36,6 +38,10 @@
     <string name="health_gc">Defragment storage</string>
     <string name="health_gc_desc">Runs the flash file system\'s garbage collection, which merges half-used blocks. Storage that has been in use for weeks gets fast again. Also runs by itself while the device is idle.</string>
     <string name="autogame_title">Auto game mode</string>
+    <string name="autogame_short">Gaming profile and a quiet system while you play</string>
+    <string name="hero_label">ACTIVE PROFILE</string>
+    <string name="hero_for_app">Picked for %1$s</string>
+    <string name="hero_quiet">Staying out of the way: game or heavy GPU work in front</string>
     <string name="autogame_desc">Games get the Gaming profile, and Strand stays out of their way: no memory compaction or maintenance until they close. Heavy GPU work in any app gets the same quiet system.</string>
     <string name="health_cache">Clear app caches</string>
     <string name="health_cache_desc">Deletes cached files of all apps. Apps rebuild them as needed; nothing you saved is touched.</string>

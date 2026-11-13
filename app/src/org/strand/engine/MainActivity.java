@@ -3,13 +3,15 @@ package org.strand.engine;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.view.Gravity;
+import android.view.HapticFeedbackConstants;
+import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
+import android.widget.Switch;
 import android.widget.TextView;
 
 import java.util.ArrayList;
@@ -19,11 +21,66 @@ import java.util.Map;
 
 public class MainActivity extends Activity {
 
+    /** One profile tile: shape icon, name, short description. */
+    private final class Tile {
+        final String name;
+        final LinearLayout view;
+        final ShapeIcon icon;
+        final TextView title, desc;
+
+        Tile(Profiles.Profile p) {
+            name = p.name;
+            view = new LinearLayout(MainActivity.this);
+            view.setOrientation(LinearLayout.VERTICAL);
+            int pad = Ui.dp(MainActivity.this, 18);
+            view.setPadding(pad, pad, pad, pad);
+            int[] look = look(p.name);
+            icon = new ShapeIcon(MainActivity.this, look[0], look[1], look[1] == 0 ? 0f : 0.09f);
+            int s = Ui.dp(MainActivity.this, 56);
+            view.addView(icon, new LinearLayout.LayoutParams(s, s));
+            title = Ui.text(MainActivity.this, p.label, 18, R.color.text, 500);
+            title.setPadding(0, Ui.dp(MainActivity.this, 14), 0, 0);
+            view.addView(title);
+            desc = Ui.text(MainActivity.this, Profiles.description(MainActivity.this, p.name), 13,
+                    R.color.text_dim);
+            desc.setPadding(0, Ui.dp(MainActivity.this, 4), 0, 0);
+            desc.setMaxLines(3);
+            view.addView(desc);
+            view.setOnClickListener(v -> {
+                v.performHapticFeedback(HapticFeedbackConstants.CONFIRM);
+                select(name);
+            });
+            setSelected(false, false);
+        }
+
+        void setSelected(boolean on, boolean animate) {
+            view.setBackground(Ui.ripple(MainActivity.this, Ui.rounded(MainActivity.this,
+                    on ? R.color.primary_container : R.color.surface, 28)));
+            icon.setColors(getColor(on ? R.color.accent : R.color.secondary_container),
+                    getColor(on ? R.color.on_accent : R.color.on_secondary_container));
+            title.setTextColor(getColor(on ? R.color.on_primary_container : R.color.text));
+            desc.setTextColor(getColor(on ? R.color.on_primary_container : R.color.text_dim));
+            desc.setAlpha(on ? 0.8f : 1f);
+            if (on && animate) icon.pop();
+        }
+    }
+
+    /** Icon and shape (lobes) per profile. */
+    private static int[] look(String name) {
+        switch (name) {
+            case "balanced": return new int[] {R.drawable.ic_balance, 0};
+            case "performance": return new int[] {R.drawable.ic_bolt, 12};
+            case "battery": return new int[] {R.drawable.ic_leaf, 6};
+            case "gaming": return new int[] {R.drawable.ic_game, 4};
+            default: return new int[] {R.drawable.ic_sparkle, 8};
+        }
+    }
+
     private final Handler mHandler = new Handler(Looper.getMainLooper());
     private LinearLayout mColumn;
-    private TextView mSubtitle;
-    private TextView mCpu, mGpu, mMem;
-    private final List<LinearLayout> mCards = new ArrayList<>();
+    private TextView mSubtitle, mHeroProfile, mHeroDetail;
+    private RingGauge mCpu, mGpu, mMem;
+    private final List<Tile> mTiles = new ArrayList<>();
     private List<Profiles.Profile> mProfiles = new ArrayList<>();
     private String mUserProfile = "";
     private boolean mResumed;
@@ -64,126 +121,164 @@ public class MainActivity extends Activity {
 
     private void build(List<Profiles.Profile> list, StrandClient.Reply status) {
         while (mColumn.getChildCount() > 2) mColumn.removeViewAt(2);
-        mCards.clear();
+        mTiles.clear();
         if (list.isEmpty() || status == null) {
             mSubtitle.setText(R.string.daemon_down);
             return;
         }
         mProfiles = list;
+        Map<String, String> st = status.map();
 
-        mColumn.addView(liveStrip());
+        mColumn.addView(hero());
 
-        if ("1".equals(status.map().get("low_storage"))) {
-            LinearLayout warn = Ui.card(this, getString(R.string.low_storage_title),
-                    getString(R.string.low_storage_desc, status.map().get("data_free_pct")));
-            warn.setBackgroundResource(R.drawable.card_selected);
-            warn.setOnClickListener(v -> startActivity(new Intent(this, HealthActivity.class)));
+        if ("1".equals(st.get("low_storage"))) {
+            Ui.Group warn = new Ui.Group(this);
+            View row = Ui.row(this, R.drawable.ic_storage, getString(R.string.low_storage_title),
+                    getString(R.string.low_storage_desc, st.get("data_free_pct")), null,
+                    v -> startActivity(new Intent(this, HealthActivity.class)));
+            warn.addView(row);
+            ((GradientDrawable) ((android.graphics.drawable.RippleDrawable) row.getBackground())
+                    .getDrawable(0)).setColor(getColor(R.color.tertiary_container));
+            ((LinearLayout.LayoutParams) warn.getLayoutParams()).topMargin = Ui.dp(this, 8);
             mColumn.addView(warn);
         }
 
         mColumn.addView(Ui.section(this, getString(R.string.section_profile)));
-        for (Profiles.Profile p : list) {
-            LinearLayout card = Ui.card(this, p.label, Profiles.description(this, p.name));
-            card.setTag(p.name);
-            card.setOnClickListener(v -> select(p.name));
-            mCards.add(card);
-            mColumn.addView(card);
+        LinearLayout grid = new LinearLayout(this);
+        grid.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout line = null;
+        for (int i = 0; i < list.size(); i++) {
+            if (i % 2 == 0) {
+                line = new LinearLayout(this);
+                line.setOrientation(LinearLayout.HORIZONTAL);
+                LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                llp.bottomMargin = Ui.dp(this, 8);
+                grid.addView(line, llp);
+            }
+            Tile t = new Tile(list.get(i));
+            mTiles.add(t);
+            LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(0,
+                    ViewGroup.LayoutParams.MATCH_PARENT, 1);
+            if (i % 2 == 0) tlp.setMarginEnd(Ui.dp(this, 8));
+            line.addView(t.view, tlp);
         }
+        if (list.size() % 2 == 1) line.addView(new View(this),
+                new LinearLayout.LayoutParams(0, 1, 1));
+        mColumn.addView(grid);
 
-        LinearLayout game = new LinearLayout(this);
-        game.setOrientation(LinearLayout.HORIZONTAL);
-        game.setGravity(Gravity.CENTER_VERTICAL);
-        game.setBackgroundResource(R.drawable.card);
-        int pad = Ui.dp(this, 18);
-        game.setPadding(pad, pad, pad, pad);
-        LinearLayout gt = new LinearLayout(this);
-        gt.setOrientation(LinearLayout.VERTICAL);
-        gt.addView(Ui.text(this, getString(R.string.autogame_title), 18, R.color.text));
-        gt.addView(Ui.text(this, getString(R.string.autogame_desc), 14, R.color.text_dim));
-        game.addView(gt, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        android.widget.Switch gs = new android.widget.Switch(this);
-        gs.setChecked(!"0".equals(status.map().get("autogame")));
-        gs.setOnCheckedChangeListener((b, on) -> StrandClient.async("autogame " + (on ? "on" : "off"), null));
-        game.addView(gs);
+        Ui.Group game = new Ui.Group(this);
+        Switch gs = new Switch(this);
+        gs.setChecked(!"0".equals(st.get("autogame")));
+        gs.setOnCheckedChangeListener((b, on) ->
+                StrandClient.async("autogame " + (on ? "on" : "off"), null));
+        game.addView(Ui.row(this, R.drawable.ic_sparkle, getString(R.string.autogame_title),
+                getString(R.string.autogame_short), gs, null));
+        ((LinearLayout.LayoutParams) game.getLayoutParams()).topMargin = Ui.dp(this, 2);
         mColumn.addView(game);
 
         mColumn.addView(Ui.section(this, getString(R.string.section_more)));
-        addLink(R.string.sound_title, R.string.sound_summary,
-                org.strand.engine.resona.ResonaActivity.class);
-        addLink(R.string.apps_title, R.string.apps_summary, AppProfilesActivity.class);
-        addLink(R.string.health_title, R.string.health_summary, HealthActivity.class);
-        addLink(R.string.nerd_title, R.string.nerd_summary, NerdActivity.class);
-        addLink(R.string.update_title, R.string.update_summary, UpdateActivity.class);
+        Ui.Group more = new Ui.Group(this);
+        more.addView(link(R.drawable.ic_sound, R.string.sound_title, R.string.sound_summary,
+                org.strand.engine.resona.ResonaActivity.class));
+        more.addView(link(R.drawable.ic_apps, R.string.apps_title, R.string.apps_summary,
+                AppProfilesActivity.class));
+        more.addView(link(R.drawable.ic_health, R.string.health_title, R.string.health_summary,
+                HealthActivity.class));
+        more.addView(link(R.drawable.ic_chart, R.string.nerd_title, R.string.nerd_summary,
+                NerdActivity.class));
+        more.addView(link(R.drawable.ic_update, R.string.update_title, R.string.update_summary,
+                UpdateActivity.class));
+        mColumn.addView(more);
 
-        applyStatus(status);
+        applyStatus(status, false);
         mHandler.removeCallbacks(mPoll);
         mHandler.post(mPoll);
     }
 
-    private void addLink(int title, int summary, Class<?> cls) {
-        LinearLayout card = Ui.card(this, getString(title), getString(summary));
-        card.setOnClickListener(v -> startActivity(new Intent(this, cls)));
-        mColumn.addView(card);
+    private View link(int icon, int title, int summary, Class<?> cls) {
+        return Ui.row(this, icon, getString(title), getString(summary), null,
+                v -> startActivity(new Intent(this, cls)));
     }
 
-    private LinearLayout liveStrip() {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setPadding(0, Ui.dp(this, 8), 0, 0);
-        mCpu = tile(row, "CPU");
-        mGpu = tile(row, "GPU");
-        mMem = tile(row, "RAM");
-        return row;
-    }
+    /** The big card: profile in force and three live rings. */
+    private LinearLayout hero() {
+        LinearLayout h = new LinearLayout(this);
+        h.setOrientation(LinearLayout.VERTICAL);
+        h.setBackground(Ui.rounded(this, R.color.primary_container, 32));
+        int p = Ui.dp(this, 24);
+        h.setPadding(p, p, p, Ui.dp(this, 16));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = Ui.dp(this, 12);
+        h.setLayoutParams(lp);
 
-    private TextView tile(LinearLayout row, String label) {
-        LinearLayout t = new LinearLayout(this);
-        t.setOrientation(LinearLayout.VERTICAL);
-        t.setBackgroundResource(R.drawable.card);
-        int p = Ui.dp(this, 14);
-        t.setPadding(p, p, p, p);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0,
-                ViewGroup.LayoutParams.WRAP_CONTENT, 1);
-        lp.setMarginEnd(row.getChildCount() < 2 ? Ui.dp(this, 8) : 0);
-        t.setLayoutParams(lp);
-        TextView l = Ui.text(this, label, 12, R.color.text_dim);
-        TextView v = Ui.text(this, "-", 20, R.color.text);
-        v.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        v.setGravity(Gravity.START);
-        t.addView(l);
-        t.addView(v);
-        row.addView(t);
-        return v;
+        TextView label = Ui.text(this, getString(R.string.hero_label), 13,
+                R.color.on_primary_container, 500);
+        label.setAlpha(0.75f);
+        h.addView(label);
+        mHeroProfile = Ui.text(this, "", 34, R.color.on_primary_container, 500);
+        h.addView(mHeroProfile);
+        mHeroDetail = Ui.text(this, "", 14, R.color.on_primary_container);
+        mHeroDetail.setAlpha(0.8f);
+        mHeroDetail.setPadding(0, Ui.dp(this, 2), 0, Ui.dp(this, 16));
+        h.addView(mHeroDetail);
+
+        LinearLayout rings = new LinearLayout(this);
+        rings.setOrientation(LinearLayout.HORIZONTAL);
+        int arc = getColor(R.color.accent);
+        int track = (getColor(R.color.on_primary_container) & 0x00ffffff) | 0x26000000;
+        int txt = getColor(R.color.on_primary_container);
+        mCpu = new RingGauge(this, "CPU", arc, track, txt);
+        mGpu = new RingGauge(this, "GPU", getColor(R.color.tertiary), track, txt);
+        mMem = new RingGauge(this, "RAM", arc, track, txt);
+        for (RingGauge g : new RingGauge[] {mCpu, mGpu, mMem}) {
+            rings.addView(g, new LinearLayout.LayoutParams(0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        }
+        h.addView(rings);
+        return h;
     }
 
     private void select(String name) {
         mUserProfile = name;
-        highlight(name);
+        highlight(name, true);
         StrandClient.async("profile " + name, r -> {
             ProfileTileService.requestUpdate(this);
             refreshLive();
         });
     }
 
-    private void highlight(String name) {
-        for (LinearLayout c : mCards) {
-            c.setBackgroundResource(name.equals(c.getTag())
-                    ? R.drawable.card_selected : R.drawable.card);
-        }
+    private void highlight(String name, boolean animate) {
+        for (Tile t : mTiles) t.setSelected(name.equals(t.name), animate);
     }
 
-    private void applyStatus(StrandClient.Reply status) {
-        if (status == null) return;
+    private void applyStatus(StrandClient.Reply status, boolean animate) {
+        if (status == null || mHeroProfile == null) return;
         Map<String, String> s = status.map();
-        mUserProfile = s.getOrDefault("profile", "");
-        String eff = s.getOrDefault("effective", mUserProfile);
+        String user = s.getOrDefault("profile", "");
+        String eff = s.getOrDefault("effective", user);
+        if (eff == null || eff.isEmpty()) eff = user;
         String top = s.getOrDefault("top_app", "-");
-        highlight(mUserProfile);
-        if (!eff.equals(mUserProfile) && !"-".equals(top)) {
-            mSubtitle.setText(getString(R.string.effective_app,
-                    Profiles.label(mProfiles, eff), top));
+        if (!user.equals(mUserProfile)) highlight(user, animate);
+        mUserProfile = user;
+        mHeroProfile.setText(Profiles.label(mProfiles, eff));
+        if (!eff.equals(user) && !"-".equals(top)) {
+            mHeroDetail.setText(getString(R.string.hero_for_app, appLabel(top)));
+        } else if ("1".equals(s.get("quiet"))) {
+            mHeroDetail.setText(R.string.hero_quiet);
         } else {
-            mSubtitle.setText(Profiles.label(mProfiles, mUserProfile));
+            mHeroDetail.setText(Profiles.description(this, eff));
+        }
+        mSubtitle.setText(R.string.tagline);
+    }
+
+    private String appLabel(String pkg) {
+        try {
+            return getPackageManager().getApplicationLabel(
+                    getPackageManager().getApplicationInfo(pkg, 0)).toString();
+        } catch (Exception e) {
+            return pkg;
         }
     }
 
@@ -192,21 +287,32 @@ public class MainActivity extends Activity {
             StrandClient.Reply st = StrandClient.call("stats");
             StrandClient.Reply status = StrandClient.call("status");
             runOnUiThread(() -> {
-                applyStatus(status);
+                applyStatus(status, true);
                 if (st == null || mCpu == null) return;
                 Map<String, String> m = st.map();
-                long maxCpu = 0;
+                float cpu = 0;
                 for (Map.Entry<String, String> e : m.entrySet()) {
-                    if (e.getKey().startsWith("cpu_") && e.getKey().endsWith("_cur")) {
-                        maxCpu = Math.max(maxCpu, parse(e.getValue()));
+                    String k = e.getKey();
+                    if (k.startsWith("cpu_") && k.endsWith("_cur")) {
+                        long cur = parse(e.getValue());
+                        long max = parse(m.get(k.substring(0, k.length() - 4) + "_max"));
+                        if (max > 0) cpu = Math.max(cpu, cur / (float) max);
                     }
                 }
-                mCpu.setText(String.format(Locale.getDefault(), "%.2f GHz", maxCpu / 1e6));
+                mCpu.set(cpu, Math.round(cpu * 100) + "%");
                 String busy = m.get("gpu_busy_pct");
-                String mhz = m.get("gpu_freq_mhz");
-                mGpu.setText(mhz != null ? mhz + " MHz" : (busy != null ? busy : "-"));
-                long avail = parse(m.get("mem_MemAvailable_kb"));
-                mMem.setText(String.format(Locale.getDefault(), "%.1f GB", avail / 1048576.0));
+                if (busy != null) {
+                    long g = parse(busy);
+                    mGpu.set(g / 100f, g + "%");
+                } else {
+                    mGpu.set(0, "-");
+                }
+                long total = parse(m.get("mem_MemTotal_kb")), avail = parse(m.get("mem_MemAvailable_kb"));
+                if (total > 0) {
+                    float used = 1f - avail / (float) total;
+                    mMem.set(used, String.format(Locale.getDefault(), "%.1fG",
+                            (total - avail) / 1048576.0));
+                }
             });
         }).start();
     }
