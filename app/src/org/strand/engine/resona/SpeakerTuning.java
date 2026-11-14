@@ -40,10 +40,24 @@ final class SpeakerTuning {
         return c != null ? c : (isLandscape ? portrait : landscape);
     }
 
+    /**
+     * The calibration for this hardware variant: resona_speaker_<sku>.json
+     * (ro.boot.product.hardware.sku) when the device ships one, else
+     * resona_speaker.json.
+     */
+    static File file() {
+        String sku = android.os.SystemProperties.get("ro.boot.product.hardware.sku", "");
+        if (sku.matches("[A-Za-z0-9_-]+")) {
+            File f = new File(PATH.replace(".json", "_" + sku + ".json"));
+            if (f.canRead()) return f;
+        }
+        return new File(PATH);
+    }
+
     /** Null on devices without a calibration file. */
     static SpeakerTuning load() {
         try {
-            File f = new File(PATH);
+            File f = file();
             if (!f.canRead()) return null;
             JSONObject root = new JSONObject(new String(Files.readAllBytes(f.toPath()),
                     StandardCharsets.UTF_8));

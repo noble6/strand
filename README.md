@@ -157,7 +157,9 @@ Leveler, Adaptive Loudness, 10-band EQ, correction EQ and a lookahead limiter.
   speakers in the stock Dolby tuning file. `audio/tools/dax2resona.py` reads
   only that calibration curve (per orientation) from `dax-default.xml` and
   fits Resona correction filters to it; the device installs the result as
-  `/system_ext/etc/strand/resona_speaker.json`. Resona applies it on the
+  `/system_ext/etc/strand/resona_speaker.json` (a variant with different
+  speakers ships `resona_speaker_<sku>.json`, picked by
+  `ro.boot.product.hardware.sku`). Resona applies it on the
   built-in speakers, switching with orientation, and runs DeepBass in the band
   the calibration hands to virtual bass. No Dolby code or library is used.
 - Hardware: the screen shows the output, its formats, rates and channels, the
