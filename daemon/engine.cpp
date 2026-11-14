@@ -164,6 +164,11 @@ bool Engine::quietLocked() {
     return games_.count(topApp_) > 0 || gpuHeavy_ || thermal_ >= cfg_.hotStatus;
 }
 
+void Engine::setOnBattery(bool on) {
+    std::lock_guard<std::mutex> lock(m_);
+    batteryReported_ = on;
+}
+
 void Engine::setThermal(int status) {
     std::lock_guard<std::mutex> lock(m_);
     thermal_ = status;
@@ -257,17 +262,14 @@ void Engine::tick() {
         if (readLine(cfg_.gpuBusyPath, &v)) gpu = atoi(trim(v).c_str());
     }
     // Battery saver can't turn on while charging: when the device goes on
-    // battery with a profile that wants it, ask again.
+    // battery with a profile that wants it, ask again. The app reports the
+    // plug state; platform domains may not read battery sysfs.
     {
-        int64_t now = nowMs();
-        if (now - lastPowerCheckMs_ >= 10000) {
-            lastPowerCheckMs_ = now;
-            std::string st;
-            bool onBattery = readLine("/sys/class/power_supply/battery/status", &st) &&
-                             trim(st) == "Discharging";
-            bool wantSaver = false;
-            {
-                std::lock_guard<std::mutex> lock(m_);
+        bool onBattery, wantSaver = false;
+        {
+            std::lock_guard<std::mutex> lock(m_);
+            onBattery = batteryReported_;
+            if (onBattery && !onBattery_) {
                 for (auto& ap : profileUndo_)
                     if (ap.action.kind == Action::PowerSave && ap.action.args[0] == "on")
                         wantSaver = true;
@@ -278,12 +280,12 @@ void Engine::tick() {
                             if (a.kind == Action::PowerSave && a.args[0] == "on") wantSaver = true;
                 }
             }
-            if (onBattery && !onBattery_ && wantSaver) {
-                logi("on battery: battery saver again");
-                cmd({"power", "set-mode", "1"});
-            }
-            onBattery_ = onBattery;
         }
+        if (onBattery && !onBattery_ && wantSaver) {
+            logi("on battery: battery saver again");
+            cmd({"power", "set-mode", "1"});
+        }
+        onBattery_ = onBattery;
     }
 
     // Free space on /data, every 10 minutes

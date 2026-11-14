@@ -87,6 +87,13 @@ ctl profile battery >/dev/null; settle
 [ "$(s dc.device_idle.inactive_to)" = 600000 ] || fail "doze timing"
 [ -s "$R/data/misc/strand/journal" ] || fail "journal not created"
 grep -q '60.0' "$R/data/misc/strand/journal" || fail "journal"
+# Unplugged (the app reports it): battery saver is asked for again
+echo 0 >"$T/settings/global.low_power"
+ctl power plugged >/dev/null; sleep 1.5
+[ "$(s global.low_power)" = 0 ] || fail "battery saver asked while plugged"
+ctl power battery >/dev/null; sleep 1.5
+[ "$(s global.low_power)" = 1 ] || fail "battery saver not asked on battery"
+{ ctl power bogus || true; } | grep -q '^err usage' || fail "power usage"
 
 # Crash while in battery: the new daemon undoes the old run, reapplies
 # battery (the saved profile), and leaving it restores the real originals.

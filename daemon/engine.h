@@ -27,6 +27,7 @@ class Engine {
     void onTopApp(const std::string& pkg);
     void onPressureEvent();
     void setThermal(int status);  // PowerManager thermal status, from the app
+    void setOnBattery(bool on);   // plug state, from the app (no battery sysfs for us)
     void tick();  // once a second: pressure calm-down
     bool wantsTopApp();
     bool interesting(const std::string& pkg);  // has an app profile, or is a game
@@ -80,8 +81,8 @@ class Engine {
     std::string topApp_;
     bool pressureWanted_ = false;
     bool kickPending_ = false;
-    bool onBattery_ = false;
-    int64_t lastPowerCheckMs_ = 0;
+    bool onBattery_ = false;       // as last acted on by tick()
+    bool batteryReported_ = false; // as the app last reported it
     uint64_t cpuPrevBusy_ = 0, cpuPrevTotal_ = 0;
     std::set<std::string> games_;
     bool autoGame_ = true;

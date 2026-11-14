@@ -86,6 +86,7 @@ Init socket `/dev/socket/strandd`, one command per line. The reply is
 | `gc`, `stop` | f2fs GC until clean; `stop` ends maintenance (idle window over) |
 | `games clear`, `games add PKG...`, `autogame on\|off` | game list and auto game mode |
 | `thermal STATUS` | PowerManager thermal status (the app sends it) |
+| `power battery\|plugged` | plug state (the app sends it) |
 | `version` | daemon protocol version |
 | `clearcache` | `pm trim-caches` for every app |
 | `dexopt FILTER PKG...` | `pm compile -m FILTER -f` (speed-profile, speed, verify, everything) |

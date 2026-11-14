@@ -160,6 +160,12 @@ std::string handle(Engine& engine, const std::string& line) {
         engine.setThermal(atoi(w[1].c_str()));
         return "ok\n";
     }
+    if (c == "power") {
+        if (w.size() != 2 || (w[1] != "battery" && w[1] != "plugged"))
+            return "err usage: power battery|plugged\n";
+        engine.setOnBattery(w[1] == "battery");
+        return "ok\n";
+    }
     if (c == "gc") return engine.queueGc() ? "ok queued\n" : "err busy\n";
     if (c == "stop") {
         engine.stopMaintenance();
