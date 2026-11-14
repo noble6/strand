@@ -27,6 +27,13 @@ public class UpdateActivity extends Activity {
         mNotes.setPadding(0, Ui.dp(this, 8), 0, 0);
         mNotes.setVisibility(View.GONE);
         card.addView(mNotes);
+        String maintainer = android.os.SystemProperties.get("ro.strand.maintainer", "");
+        if (!maintainer.isEmpty()) {
+            TextView m = Ui.text(this, getString(R.string.update_maintainer, maintainer), 14,
+                    R.color.text_dim);
+            m.setPadding(0, Ui.dp(this, 6), 0, 0);
+            card.addView(m);
+        }
         mButton = Ui.button(this, getString(R.string.update_check), v -> onButton());
         card.addView(mButton);
         col.addView(card);
