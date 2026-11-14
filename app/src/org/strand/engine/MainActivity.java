@@ -2,17 +2,22 @@
 package org.strand.engine;
 
 import android.app.Activity;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.service.quicksettings.TileService;
 import android.view.HapticFeedbackConstants;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.Switch;
 import android.widget.TextView;
+
+import org.strand.engine.resona.ResonaActivity;
+import org.strand.engine.resona.ResonaTileService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -93,9 +98,28 @@ public class MainActivity extends Activity {
         }
     };
 
+    /** Long-press on the Resona tile opens Resona; the Strand tile opens this screen. */
+    private boolean openTilePreferences(Intent i) {
+        if (i == null || !TileService.ACTION_QS_TILE_PREFERENCES.equals(i.getAction())) return false;
+        ComponentName tile = i.getParcelableExtra(Intent.EXTRA_COMPONENT_NAME, ComponentName.class);
+        if (tile == null || !ResonaTileService.class.getName().equals(tile.getClassName())) return false;
+        startActivity(new Intent(this, ResonaActivity.class));
+        return true;
+    }
+
+    @Override
+    protected void onNewIntent(Intent i) {
+        super.onNewIntent(i);
+        openTilePreferences(i);
+    }
+
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        if (openTilePreferences(getIntent())) {
+            finish();
+            return;
+        }
         mColumn = Ui.page(this, getString(R.string.app_name), getString(R.string.tagline));
         mSubtitle = (TextView) mColumn.getTag();
         MaintenanceJobService.ensureScheduled(this);

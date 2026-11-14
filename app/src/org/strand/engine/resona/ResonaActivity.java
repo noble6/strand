@@ -98,6 +98,9 @@ public class ResonaActivity extends Activity implements ResonaController.Listene
     private final Handler mHandler = new Handler(Looper.getMainLooper());
     private ResonaController mCtl;
     private MorphButton mPower;
+    private LinearLayout mMainSwitch;
+    private Switch mMainToggle;
+    private TextView mMainLabel;
     private SpectrumView mSpectrum;
     private EqCurveView mEq;
     private TextView mSubtitle, mMeters;
@@ -214,6 +217,31 @@ public class ResonaActivity extends Activity implements ResonaController.Listene
             return;
         }
 
+        // Main switch (Android Settings style): the plain on/off for Resona
+        mMainSwitch = new LinearLayout(this);
+        mMainSwitch.setOrientation(LinearLayout.HORIZONTAL);
+        mMainSwitch.setGravity(Gravity.CENTER_VERTICAL);
+        mMainSwitch.setMinimumHeight(dp(72));
+        mMainSwitch.setPadding(dp(24), dp(12), dp(16), dp(12));
+        mMainLabel = text("Use Resona", 20, R.color.text);
+        mMainLabel.setTypeface(Typeface.create(Typeface.DEFAULT, 500, false));
+        mMainSwitch.addView(mMainLabel, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        mMainToggle = new Switch(this);
+        mMainToggle.setClickable(false);
+        mMainToggle.setFocusable(false);
+        mMainSwitch.addView(mMainToggle);
+        mMainSwitch.setClickable(true);
+        mMainSwitch.setOnClickListener(v -> {
+            v.performHapticFeedback(HapticFeedbackConstants.CONFIRM);
+            mCtl.setEnabled(!mCtl.isEnabled());
+        });
+        LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        mlp.topMargin = dp(12);
+        mlp.bottomMargin = dp(8);
+        col.addView(mMainSwitch, mlp);
+
         mPower = new MorphButton(this, Theme.color(this, R.color.accent), Theme.color(this, R.color.surface_high),
                 Theme.color(this, R.color.on_accent), Theme.color(this, R.color.text_dim));
         mPower.setOnClickListener(v -> {
@@ -300,6 +328,7 @@ public class ResonaActivity extends Activity implements ResonaController.Listene
         mCtl.addListener(this);
         rebuild();
         mPower.setOn(mCtl.isEnabled(), false);
+        updateMainSwitch();
         mHandler.post(mFrame);
     }
 
@@ -315,7 +344,22 @@ public class ResonaActivity extends Activity implements ResonaController.Listene
     public void onResonaChanged() {
         if (mBuilding) return;
         mPower.setOn(mCtl.isEnabled(), true);
+        updateMainSwitch();
         rebuild();
+    }
+
+    private void updateMainSwitch() {
+        boolean on = mCtl.isEnabled();
+        mMainToggle.setChecked(on);
+        mMainLabel.setText(on ? "Use Resona" : "Resona is off");
+        mMainLabel.setTextColor(Theme.color(this, on ? R.color.on_primary_container : R.color.text));
+        GradientDrawable g = new GradientDrawable();
+        g.setCornerRadius(dp(28));
+        g.setColor(Theme.color(this, on ? R.color.primary_container : R.color.surface_high));
+        mMainSwitch.setBackground(new android.graphics.drawable.RippleDrawable(
+                android.content.res.ColorStateList.valueOf(
+                        (Theme.color(this, R.color.text) & 0x00ffffff) | 0x22000000), g, null));
+        mMainSwitch.setContentDescription(on ? "Resona on" : "Resona off");
     }
 
     private void frame(float[] scope, float[] m) {

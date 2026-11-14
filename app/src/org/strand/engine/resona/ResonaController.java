@@ -2,6 +2,7 @@
 package org.strand.engine.resona;
 
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -180,6 +181,9 @@ public final class ResonaController {
     public void setEnabled(boolean on) {
         mPrefs.edit().putBoolean("enabled", on).apply();
         apply();
+        // The quick settings tile shows the new state even when the change came from the app
+        android.service.quicksettings.TileService.requestListeningState(mContext,
+                new ComponentName(mContext, ResonaTileService.class));
     }
 
     public void setProfile(String name) {
