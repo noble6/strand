@@ -501,8 +501,18 @@ void Engine::runJob(const Job& job) {
                 if (rc == 0) ok++;
                 else logw("compile %s: %d %s", pkg.c_str(), rc, out.c_str());
             }
+            // Drop compiled code left behind by uninstalled and updated
+            // apps: months of updates otherwise pile up in /data/app and
+            // /data/dalvik-cache.
+            std::string freed;
+            if (waitWhileQuiet()) {
+                state("art cleanup");
+                std::string out;
+                if (cmd({"package", "art", "cleanup"}, &out, 300) == 0)
+                    freed = ", cleanup: " + trim(out);
+            }
             done(&lastDexopt_, job.filter + " " + std::to_string(ok) + "/" +
-                                       std::to_string(job.pkgs.size()));
+                                       std::to_string(job.pkgs.size()) + freed);
             break;
         }
     }
