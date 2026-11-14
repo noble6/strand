@@ -44,7 +44,7 @@ final class Updater {
 
     /** What a release offers against what is installed. */
     static final class Check {
-        String tag, notes;
+        String tag, name, notes, published, page;
         long apexInstalled, apexOffered, appInstalled, appOffered;
         final Map<String, String> urls = new HashMap<>(), sha = new HashMap<>();
 
@@ -89,7 +89,10 @@ final class Updater {
         JSONObject rel = new JSONObject(get(RELEASES));
         Check ck = new Check();
         ck.tag = rel.optString("tag_name");
+        ck.name = rel.optString("name", ck.tag);
         ck.notes = rel.optString("body");
+        ck.published = rel.optString("published_at");
+        ck.page = rel.optString("html_url");
         JSONArray assets = rel.getJSONArray("assets");
         for (int i = 0; i < assets.length(); i++) {
             JSONObject a = assets.getJSONObject(i);

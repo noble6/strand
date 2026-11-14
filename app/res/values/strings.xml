@@ -75,16 +75,26 @@
 
     <string name="update_title">Updates</string>
     <string name="update_summary">Update the Strand engine and app without a new ROM</string>
-    <string name="update_installed">Engine %1$d, app %2$d</string>
-    <string name="update_maintainer">Maintainer: %1$s</string>
+    <string name="update_engine">Engine</string>
+    <string name="update_app">App</string>
+    <string name="update_maintainer">Maintained by %1$s</string>
     <string name="update_check">Check for updates</string>
-    <string name="update_checking">Checking…</string>
-    <string name="update_none">Up to date (%1$s)</string>
-    <string name="update_available">%1$s: engine %2$d, app %3$d</string>
+    <string name="update_checking">Checking for updates…</string>
+    <string name="update_state_checking">Checking</string>
+    <string name="update_state_current">Up to date</string>
+    <string name="update_state_available">Update available</string>
+    <string name="update_state_ready">Restart to finish</string>
+    <string name="update_state_error">Couldn\'t check</string>
+    <string name="update_none">You have the latest release, %1$s.</string>
+    <string name="update_available">%1$s is ready to install: engine %2$d, app %3$d.</string>
     <string name="update_install">Download and install</string>
+    <string name="update_installing">Installing…</string>
     <string name="update_staged">Installed. It takes effect after a restart.</string>
     <string name="update_reboot">Restart now</string>
     <string name="update_error">Couldn\'t update: %1$s</string>
+    <string name="update_notes">What\'s new</string>
+    <string name="update_notes_none">This release has no notes.</string>
+    <string name="update_notes_open">Open on GitHub</string>
     <string name="update_about">Updates come from github.com/noble6/strand and install only if they carry the same signing keys as this build.</string>
 
     <string name="ok">OK</string>
