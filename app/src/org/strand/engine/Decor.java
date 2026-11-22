@@ -15,7 +15,10 @@ import android.view.animation.LinearInterpolator;
  * while attached and visible.
  */
 public final class Decor extends View {
-    /** x, y (fraction of the view), radius (fraction of height), lobes, depth, speed, color idx */
+    /**
+     * x, y (fraction of the view; a negative x is measured from the right edge in heights),
+     * radius (fraction of height), lobes, depth, speed, color idx
+     */
     private final float[][] mShapes;
     private final int[] mColors;
     private final Paint mPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -29,16 +32,19 @@ public final class Decor extends View {
         mColors = colors;
     }
 
-    /** Header decoration: a big cookie and a clover at the top right. */
+    /**
+     * Header decoration: a cookie, a clover and a dot at the top right, all inside the
+     * header (nothing cut by its edges) and soft enough for the title to sit over them.
+     */
     public static Decor header(Context c) {
         return new Decor(c, new float[][] {
-                {0.86f, 0.42f, 0.62f, 9, 0.08f, 1f, 0},
-                {0.70f, 0.80f, 0.30f, 4, 0.16f, -1.6f, 1},
-                {0.97f, 0.95f, 0.18f, 0, 0f, 0f, 2},
+                {-0.46f, 0.47f, 0.36f, 9, 0.08f, 1f, 0},
+                {-0.98f, 0.70f, 0.19f, 4, 0.16f, -1.6f, 1},
+                {-0.14f, 0.86f, 0.10f, 0, 0f, 0f, 2},
         }, new int[] {
-                (Theme.color(c, R.color.primary_container) & 0x00ffffff) | 0xcc000000,
-                (Theme.color(c, R.color.tertiary_container) & 0x00ffffff) | 0xdd000000,
-                (Theme.color(c, R.color.secondary_container) & 0x00ffffff) | 0xee000000,
+                (Theme.color(c, R.color.primary_container) & 0x00ffffff) | 0x99000000,
+                (Theme.color(c, R.color.tertiary_container) & 0x00ffffff) | 0xaa000000,
+                (Theme.color(c, R.color.secondary_container) & 0x00ffffff) | 0xcc000000,
         });
     }
 
@@ -83,7 +89,7 @@ public final class Decor extends View {
     protected void onDraw(Canvas canvas) {
         float w = getWidth(), h = getHeight();
         for (float[] s : mShapes) {
-            float cx = s[0] * w, cy = s[1] * h, r = s[2] * h;
+            float cx = s[0] < 0 ? w + s[0] * h : s[0] * w, cy = s[1] * h, r = s[2] * h;
             int lobes = (int) s[3];
             float depth = s[4], turn = mT * s[5];
             mPath.reset();

@@ -87,17 +87,18 @@ final class Ui {
 
         // Header: expressive shapes turning behind the title (top right)
         FrameLayout header = new FrameLayout(a);
+        header.setMinimumHeight(dp(a, 140));
         header.addView(Decor.header(a), new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(a, 132)));
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         LinearLayout titles = new LinearLayout(a);
         titles.setOrientation(LinearLayout.VERTICAL);
         TextView big = text(a, title, 40, R.color.text, 400);
-        big.setPadding(dp(a, 8), dp(a, 24), 0, 0);
+        big.setPadding(dp(a, 8), dp(a, 28), dp(a, 16), 0);
         titles.addView(big);
         TextView sub = null;
         if (subtitle != null) {
             sub = text(a, subtitle, 16, R.color.text_dim);
-            sub.setPadding(dp(a, 8), dp(a, 6), 0, dp(a, 8));
+            sub.setPadding(dp(a, 8), dp(a, 6), dp(a, 24), dp(a, 16));
             titles.addView(sub);
         }
         header.addView(titles);

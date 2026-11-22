@@ -370,7 +370,7 @@ public class ResonaActivity extends Activity implements ResonaController.Listene
             mMeters.setText(String.format(Locale.getDefault(),
                     "Leveler %+.1f dB   Limiter %.1f dB   Loudness +%.1f dB", m[4], m[5], m[6]));
         } else {
-            mMeters.setText(mCtl.isEnabled() ? "" : "Off");
+            mMeters.setText(mCtl.isEnabled() ? "Play something to see the sound" : "Off");
         }
     }
 

@@ -30,21 +30,37 @@ import java.util.function.Consumer;
  * strandd and the profiles) and this app, from the GitHub releases of
  * noble6/strand (tools/make-release.sh makes them).
  *
+ * Each device has its own channel (ro.strand.channel, else the device
+ * codename): releases are tagged strand-<channel>-e<engine>-a<app>, because a
+ * release only installs on the build whose keys signed it.
+ *
  * Both go in one staged install that applies on the next reboot, the way
  * Mainline modules update: Android only lets a persistent app update that
  * way, and the APEX needs a reboot anyway. Package manager only accepts
  * them when they carry the same keys as the installed build.
  */
 final class Updater {
-    static final String RELEASES = "https://api.github.com/repos/noble6/strand/releases/latest";
+    static final String RELEASES = "https://api.github.com/repos/noble6/strand/releases?per_page=50";
     static final String APEX = "org.strand.core";
     static final String APEX_FILE = "org.strand.core.apex";
     static final String APK_FILE = "Strand.apk";
     private static final String ACTION_RESULT = "org.strand.engine.UPDATE_RESULT";
 
+    /** This build's update channel: ro.strand.channel, else the device codename. */
+    static String channel() {
+        for (String p : new String[] {"ro.strand.channel", "ro.lineage.device",
+                "ro.crdroid.device", "ro.product.vendor.device", "ro.build.product"}) {
+            String v = android.os.SystemProperties.get(p, "").trim();
+            if (!v.isEmpty()) return v;
+        }
+        return "";
+    }
+
     /** What a release offers against what is installed. */
     static final class Check {
         String tag, name, notes, published, page;
+        /** No release for this channel yet (not an error). */
+        boolean none;
         long apexInstalled, apexOffered, appInstalled, appOffered;
         final Map<String, String> urls = new HashMap<>(), sha = new HashMap<>();
 
@@ -84,10 +100,24 @@ final class Updater {
         }
     }
 
-    /** Blocking: the latest release against the installed versions. */
+    /** Blocking: the newest release of this device's channel against the installed versions. */
     static Check check(Context c) throws Exception {
-        JSONObject rel = new JSONObject(get(RELEASES));
         Check ck = new Check();
+        ck.apexInstalled = apexVersion(c);
+        ck.appInstalled = appVersion(c);
+        String prefix = "strand-" + channel() + "-";
+        JSONArray all = new JSONArray(get(RELEASES));
+        JSONObject rel = null;
+        for (int i = 0; i < all.length() && rel == null; i++) {
+            JSONObject r = all.getJSONObject(i);
+            if (r.optBoolean("draft") || r.optBoolean("prerelease")) continue;
+            if (r.optString("tag_name").startsWith(prefix)) rel = r;
+        }
+        if (rel == null) {
+            ck.none = true;
+            ck.tag = ck.name = ck.notes = ck.published = ck.page = "";
+            return ck;
+        }
         ck.tag = rel.optString("tag_name");
         ck.name = rel.optString("name", ck.tag);
         ck.notes = rel.optString("body");
@@ -102,13 +132,15 @@ final class Updater {
         JSONObject u = new JSONObject(get(ck.urls.get("update.json")));
         ck.apexOffered = u.optLong("apex_version");
         ck.appOffered = u.optLong("app_version");
+        String ch = u.optString("channel", "");
+        if (!ch.isEmpty() && !ch.equals(channel())) {
+            throw new Exception("release " + ck.tag + " is for " + ch);
+        }
         JSONObject sha = u.getJSONObject("sha256");
         for (java.util.Iterator<String> it = sha.keys(); it.hasNext(); ) {
             String k = it.next();
             ck.sha.put(k, sha.getString(k));
         }
-        ck.apexInstalled = apexVersion(c);
-        ck.appInstalled = appVersion(c);
         return ck;
     }
 

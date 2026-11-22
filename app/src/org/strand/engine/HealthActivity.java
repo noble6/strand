@@ -243,27 +243,46 @@ public class HealthActivity extends Activity {
                     float used = 1f - free / (float) total;
                     mStorageRing.set(used, Math.round(used * 100) + "%");
                 }
-                if (st != null) showBattery(st.map());
+                showBattery();
                 if (status != null) showJobs(status.map());
             });
         }).start();
     }
 
-    private void showBattery(Map<String, String> m) {
-        long full = MainActivity.parse(m.get("battery_full_uah"));
-        long design = MainActivity.parse(m.get("battery_design_uah"));
-        String cycles = m.getOrDefault("battery_cycles", "?");
-        if (design > 0 && full > 0) {
-            int health = (int) Math.round(100.0 * full / design);
-            mBattery.setText(getString(R.string.health_battery_value, health, cycles));
-            mBatteryRing.set(Math.min(1f, health / 100f), health + "%");
-        } else {
-            mBattery.setText(m.getOrDefault("battery_pct", "?") + "%");
+    /** BATTERY_PROPERTY_STATE_OF_HEALTH (system API): capacity left in %, from the health HAL. */
+    private static final int PROPERTY_STATE_OF_HEALTH = 10;
+
+    /**
+     * Battery from Android, not from strandd (platform domains may not read battery sysfs):
+     * health from the health HAL, cycle count, level and temperature from the battery
+     * broadcast.
+     */
+    private void showBattery() {
+        android.content.Intent b = registerReceiver(null,
+                new android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED));
+        android.os.BatteryManager bm = getSystemService(android.os.BatteryManager.class);
+        int health = -1;
+        try {
+            health = bm.getIntProperty(PROPERTY_STATE_OF_HEALTH);
+        } catch (RuntimeException e) {
+            // No health HAL support or no permission: fall back to the level
         }
-        String temp = m.get("battery_temp_dc");
-        if (temp != null) {
-            mBatteryTemp.setText(getString(R.string.health_battery_temp,
-                    MainActivity.parse(temp) / 10.0));
+        int cycles = b == null ? -1 : b.getIntExtra("android.os.extra.CYCLE_COUNT", -1);
+        int level = b == null ? -1 : b.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1);
+        int scale = b == null ? 100 : b.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, 100);
+        int pct = level >= 0 && scale > 0 ? Math.round(100f * level / scale) : -1;
+        String cyc = cycles >= 0 ? String.valueOf(cycles) : "?";
+        if (health > 0 && health <= 100) {
+            mBattery.setText(getString(R.string.health_battery_value, health, cyc));
+            mBatteryRing.set(health / 100f, health + "%");
+        } else if (pct >= 0) {
+            mBattery.setText(getString(R.string.health_battery_level, pct, cyc));
+            mBatteryRing.set(pct / 100f, pct + "%");
+        }
+        int temp = b == null ? Integer.MIN_VALUE
+                : b.getIntExtra(android.os.BatteryManager.EXTRA_TEMPERATURE, Integer.MIN_VALUE);
+        if (temp != Integer.MIN_VALUE) {
+            mBatteryTemp.setText(getString(R.string.health_battery_temp, temp / 10.0));
         }
     }
 

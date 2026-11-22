@@ -251,13 +251,24 @@ public class MainActivity extends Activity {
         TextView sum = Ui.text(this, getString(R.string.theme_summary), 14, R.color.text_dim);
         sum.setPadding(0, Ui.dp(this, 2), 0, Ui.dp(this, 14));
         box.addView(sum);
-        android.widget.HorizontalScrollView hs = new android.widget.HorizontalScrollView(this);
-        hs.setHorizontalScrollBarEnabled(false);
-        LinearLayout sw = new LinearLayout(this);
+        // Every color in view: rows of five equal cells, the dot centered in each
+        final int perRow = 5;
         String cur = Theme.current(this);
+        LinearLayout grid = new LinearLayout(this);
+        grid.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout rowView = null;
         for (int i = 0; i < Theme.NAMES.length; i++) {
+            if (i % perRow == 0) {
+                rowView = new LinearLayout(this);
+                rowView.setOrientation(LinearLayout.HORIZONTAL);
+                LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                if (i > 0) rlp.topMargin = Ui.dp(this, 12);
+                grid.addView(rowView, rlp);
+            }
             final String name = Theme.NAMES[i];
             boolean on = name.equals(cur);
+            android.widget.FrameLayout cell = new android.widget.FrameLayout(this);
             View dot = new View(this);
             GradientDrawable d = new GradientDrawable();
             d.setShape(GradientDrawable.OVAL);
@@ -265,19 +276,23 @@ public class MainActivity extends Activity {
             if (on) d.setStroke(Ui.dp(this, 3), Theme.color(this, R.color.text));
             dot.setBackground(d);
             dot.setContentDescription(name);
-            int s = Ui.dp(this, on ? 48 : 42);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(s, s);
-            lp.setMarginEnd(Ui.dp(this, 12));
-            lp.gravity = android.view.Gravity.CENTER_VERTICAL;
-            sw.addView(dot, lp);
-            dot.setOnClickListener(v -> {
+            int s = Ui.dp(this, on ? 46 : 40);
+            android.widget.FrameLayout.LayoutParams dlp =
+                    new android.widget.FrameLayout.LayoutParams(s, s, android.view.Gravity.CENTER);
+            cell.addView(dot, dlp);
+            cell.setMinimumHeight(Ui.dp(this, 48));
+            rowView.addView(cell, new LinearLayout.LayoutParams(0, Ui.dp(this, 48), 1));
+            cell.setOnClickListener(v -> {
                 v.performHapticFeedback(HapticFeedbackConstants.CONFIRM);
                 Theme.set(this, name, Theme.pureBlack(this));
                 recreate();
             });
         }
-        hs.addView(sw);
-        box.addView(hs);
+        // Keep the last row's cells the same width as the others
+        for (int i = Theme.NAMES.length; i % perRow != 0; i++) {
+            rowView.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1));
+        }
+        box.addView(grid);
         g.addView(box);
         Switch black = new Switch(this);
         black.setChecked(Theme.pureBlack(this));
@@ -384,15 +399,22 @@ public class MainActivity extends Activity {
                 applyStatus(status, true);
                 if (st == null || mCpu == null) return;
                 Map<String, String> m = st.map();
+                // Until strandd has two samples for the load, the clusters' average clock;
+                // the busiest one alone reads 100% whenever a core is boosted.
                 float cpu = 0;
+                int clusters = 0;
                 for (Map.Entry<String, String> e : m.entrySet()) {
                     String k = e.getKey();
                     if (k.startsWith("cpu_") && k.endsWith("_cur")) {
                         long cur = parse(e.getValue());
                         long max = parse(m.get(k.substring(0, k.length() - 4) + "_max"));
-                        if (max > 0) cpu = Math.max(cpu, cur / (float) max);
+                        if (max > 0) {
+                            cpu += cur / (float) max;
+                            clusters++;
+                        }
                     }
                 }
+                if (clusters > 0) cpu /= clusters;
                 String load = m.get("cpu_load_pct");
                 if (load != null) cpu = parse(load) / 100f;
                 mCpu.set(cpu, Math.round(cpu * 100) + "%");

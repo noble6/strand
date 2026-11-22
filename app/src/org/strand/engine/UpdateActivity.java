@@ -230,6 +230,12 @@ public class UpdateActivity extends Activity {
                     mButton.setText(R.string.update_check);
                     return;
                 }
+                if (result.none) {
+                    setState(R.string.update_state_current, false);
+                    mStatus.setText(R.string.update_none_published);
+                    mButton.setText(R.string.update_check);
+                    return;
+                }
                 showNotes(result);
                 if (result.any()) {
                     setState(R.string.update_state_available, true);

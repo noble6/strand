@@ -34,6 +34,7 @@
     <string name="health_storage_value">Storage: %1$s free of %2$s</string>
     <string name="health_battery">Battery</string>
     <string name="health_battery_value">Battery: %1$d%% of design capacity, %2$s cycles</string>
+    <string name="health_battery_level">Battery: %1$d%% charged, %2$s cycles</string>
     <string name="health_battery_temp">Temperature %1$.1f °C</string>
     <string name="health_optimize">Optimize frequently used apps</string>
     <string name="health_optimize_desc">Recompiles the apps you use most with their latest usage profiles, so they start and scroll faster.</string>
@@ -85,6 +86,7 @@
     <string name="update_state_available">Update available</string>
     <string name="update_state_ready">Restart to finish</string>
     <string name="update_state_error">Couldn\'t check</string>
+    <string name="update_none_published">No update has been published for this device yet.</string>
     <string name="update_none">You have the latest release, %1$s.</string>
     <string name="update_available">%1$s is ready to install: engine %2$d, app %3$d.</string>
     <string name="update_install">Download and install</string>

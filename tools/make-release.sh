@@ -8,9 +8,16 @@
 # Devices update only to files signed with the keys of their build, so
 # release from the tree (and keys) that built the ROM people run. Bump
 # apex/apex_manifest.json "version" and the app's android:versionCode first.
+#
+# Each device has its own channel (the app reads ro.strand.channel, else the
+# device codename): the tag is strand-<channel>-e<engine>-a<app>. The channel
+# defaults to the lunch target's device (lineage_rubyx -> rubyx); set
+# STRAND_CHANNEL to override.
 set -euo pipefail
 : "${OUT:?run lunch first}"
 NOTES=${1:-}
+CHANNEL=${STRAND_CHANNEL:-${TARGET_PRODUCT#*_}}
+[ -n "$CHANNEL" ] || { echo "no channel: set STRAND_CHANNEL"; exit 1; }
 TOP=$(pwd)
 S=$TOP/vendor/strand
 APEX=$(find "$OUT" -path '*/apex/org.strand.core.apex' -print -quit)
@@ -20,21 +27,21 @@ APK=$(find "$OUT" -path '*/priv-app/Strand/Strand.apk' -print -quit)
 
 apex_ver=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["version"])' "$S/apex/apex_manifest.json")
 app_ver=$(sed -n 's/.*android:versionCode="\([0-9]*\)".*/\1/p' "$S/app/AndroidManifest.xml" | head -1)
-tag="strand-e${apex_ver}-a${app_ver}"
+tag="strand-${CHANNEL}-e${apex_ver}-a${app_ver}"
 
 D=$(mktemp -d)
 trap 'rm -rf "$D"' EXIT
 cp "$APEX" "$D/org.strand.core.apex"
 cp "$APK" "$D/Strand.apk"
-python3 - "$D" "$apex_ver" "$app_ver" <<'PY'
+python3 - "$D" "$apex_ver" "$app_ver" "$CHANNEL" <<'PY'
 import hashlib, json, sys
-d, apex, app = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+d, apex, app, channel = sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), sys.argv[4]
 sha = {n: hashlib.sha256(open(f"{d}/{n}", "rb").read()).hexdigest()
        for n in ("org.strand.core.apex", "Strand.apk")}
-json.dump({"apex_version": apex, "app_version": app, "sha256": sha},
+json.dump({"channel": channel, "apex_version": apex, "app_version": app, "sha256": sha},
           open(f"{d}/update.json", "w"), indent=1)
 PY
 cat "$D/update.json"
-gh release create "$tag" -R noble6/strand --title "Strand engine $apex_ver, app $app_ver" \
+gh release create "$tag" -R noble6/strand --title "Strand $CHANNEL: engine $apex_ver, app $app_ver" \
     --notes "${NOTES:-Strand update}" \
     "$D/org.strand.core.apex" "$D/Strand.apk" "$D/update.json"
