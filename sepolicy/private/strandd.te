@@ -29,10 +29,15 @@ allow strandd sysfs_zram:dir search;
 allow strandd sysfs_zram:file r_file_perms;
 r_dir_file(strandd, sysfs_thermal)
 
-# Foreground app for per-app profiles
+# Foreground app for per-app profiles: the cmdline of each top-app
+# process. App processes carry MLS categories, so reading them also needs
+# mlstrustedsubject, as lmkd does. system_server can sit in top-app too and
+# is skipped (no package name), so don't log that lookup.
 allow strandd cgroup:dir search;
 allow strandd cgroup:file r_file_perms;
 r_dir_file(strandd, appdomain)
+typeattribute strandd mlstrustedsubject;
+dontaudit strandd system_server:dir search;
 
 # Undo journal
 allow strandd strandd_data_file:dir rw_dir_perms;
